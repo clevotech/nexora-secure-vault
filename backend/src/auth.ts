@@ -16,13 +16,17 @@ export async function authenticate(headers:Record<string,string|undefined>):Prom
   const audience=process.env.NEXORA_AUTH_AUDIENCE;
   if(!issuer||!audience)throw new Error("Production authentication verifier is not configured");
 
-  const jwks=new URL("/.well-known/jwks.json",issuer.endsWith("/")?issuer:issuer+"/");
-  const keys=createRemoteJWKSet(jwks);
-  const {payload}=await jwtVerify(token,keys,{issuer,audience});
-  const userId=typeof payload.sub==="string"?payload.sub:"";
-  if(!userId)throw new Error("Authenticated token has no subject");
+  try{
+    const jwks=new URL("/.well-known/jwks.json",issuer.endsWith("/")?issuer:issuer+"/");
+    const keys=createRemoteJWKSet(jwks);
+    const {payload}=await jwtVerify(token,keys,{issuer,audience});
+    const userId=typeof payload.sub==="string"?payload.sub:"";
+    if(!userId)throw new Error("Authenticated token has no subject");
 
-  const rawScopes=payload.scope;
-  const scopes=new Set(typeof rawScopes==="string"?rawScopes.split(" ").filter(Boolean):["user"]);
-  return {userId,scopes};
+    const rawScopes=payload.scope;
+    const scopes=new Set(typeof rawScopes==="string"?rawScopes.split(" ").filter(Boolean):["user"]);
+    return {userId,scopes};
+  }catch{
+    throw new Error("Authentication failed");
+  }
 }
