@@ -11,6 +11,10 @@ android {
         applicationId = "com.clevotech.nexora"
         minSdk = 26
         targetSdk = 36
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
         versionCode = 1
         versionName = "0.3.0"
     }
