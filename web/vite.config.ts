@@ -6,6 +6,7 @@ const nobleCiphers = fileURLToPath(new URL("./node_modules/@noble/ciphers/", imp
 const nobleHashes = fileURLToPath(new URL("./node_modules/@noble/hashes/", import.meta.url));
 
 export default defineConfig({
+  base: process.env.GITHUB_ACTIONS ? "/nexora-secure-vault/" : "/",
   plugins:[react()],
   resolve:{
     preserveSymlinks:true,
