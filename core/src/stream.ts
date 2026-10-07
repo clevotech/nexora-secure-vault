@@ -12,19 +12,17 @@ export async function encryptStream(source:ByteSource,sink:ByteSink,password:str
  for await(const plain of chunks(source)){const r=encryptChunk(key,plain,seq,hb);await sink(concat(concat(concat(u32(seq),new Uint8Array([12])),r.nonce),concat(u32(r.ciphertext.length),r.ciphertext)));seq++}
  return header;
 }
-async function readExact(source:AsyncIterator<Uint8Array>,state:{buf:Uint8Array} ,n:number):Promise<Uint8Array>{
+async function readExact(source:AsyncIterator<Uint8Array>,state:{buf:Uint8Array},n:number):Promise<Uint8Array>{
  while(state.buf.length<n){const next=await source.next();if(next.done)throw new Error("Unexpected end of container");state.buf=concat(state.buf,next.value)}
- const out=state.buf.subarray(0,n);state.buf=state.buf.slice(n);return out;
+ const out=state.buf.slice(0,n);state.buf=state.buf.slice(n);return out;
 }
 export async function decryptStream(source:ByteSource,sink:ByteSink,password:string){
  const it=source[Symbol.asyncIterator](),state={buf:new Uint8Array()};
- const lenBytes=await readExact(it,state,4),hlen=ru32(lenBytes,0);if(hlen>64*1024)throw new Error("Invalid header length");
+ const hlen=ru32(await readExact(it,state,4),0);if(hlen>64*1024)throw new Error("Invalid header length");
  const hb=await readExact(it,state,hlen),header=decodeHeader(hb),salt=new Uint8Array(header.salt.match(/../g)!.map(x=>parseInt(x,16))),key=deriveKey(password,salt);
  let expected=0,total=0;
  while(true){
-  const first=await it.next();if(first.done){if(state.buf.length)throw new Error("Malformed trailing data");break}
-  state.buf=concat(state.buf,first.value);
-  if(state.buf.length===0)continue;
+  if(state.buf.length===0){const next=await it.next();if(next.done)break;state.buf=next.value}
   const seq=ru32(await readExact(it,state,4),0);if(seq!==expected)throw new Error("Invalid chunk sequence");
   const nl=(await readExact(it,state,1))[0];if(nl!==12)throw new Error("Invalid nonce");
   const nonce=await readExact(it,state,nl),clen=ru32(await readExact(it,state,4),0);
@@ -33,5 +31,6 @@ export async function decryptStream(source:ByteSource,sink:ByteSink,password:str
   if(total>Number(header.originalSize))throw new Error("Integrity/size verification failed");
   await sink(plain);expected++;
  }
- if(total!==Number(header.originalSize))throw new Error("Integrity/size verification failed");return header;
+ if(state.buf.length!==0||total!==Number(header.originalSize))throw new Error("Integrity/size verification failed");
+ return header;
 }
