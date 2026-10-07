@@ -10,7 +10,7 @@ const download=(bytes:Uint8Array,name:string)=>{const a=document.createElement("
 function App(){const[file,setFile]=useState<File|null>(null),[password,setPassword]=useState(""),[status,setStatus]=useState("Ready"),[progress,setProgress]=useState(0),[busy,setBusy]=useState(false),[logs,setLogs]=useState(load),cancel=useRef<AbortController|null>(null);
 const add=(op:string,name:string,status:string)=>{const l={id:crypto.randomUUID(),op,file:name,time:new Date().toISOString(),status};const n=[l,...logs];setLogs(n);save(n)};
 const run=async(op:"encrypt"|"decrypt")=>{
-if(window.__TAURI_INTERNALS__){
+if("__TAURI_INTERNALS__" in window){
  const input=await open({multiple:false,directory:false,title:op==="encrypt"?"Choose file to encrypt":"Choose .nsv file to decrypt"});
  if(!input||Array.isArray(input))return;
  const suggested=op==="encrypt"?String(input).split(/[\\\\/]/).pop()+".nsv":String(input).split(/[\\\\/]/).pop()?.replace(/\\.nsv$/i,"")||"decrypted-file";
