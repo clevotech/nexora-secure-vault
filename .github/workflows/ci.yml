@@ -22,6 +22,21 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+
   web:
     runs-on: ubuntu-latest
     needs: core
@@ -74,7 +89,7 @@ jobs:
 
   repository-sanity:
     runs-on: ubuntu-latest
-    needs: [core, web, windows, android]
+    needs: [core, backend, web, windows, android]
     steps:
       - uses: actions/checkout@v6
       - run: test -f SECURITY.md
