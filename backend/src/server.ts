@@ -2,6 +2,7 @@ import {createServer} from "node:http";
 import {routeChat,validateChat} from "./router.js";
 import {authenticate} from "./auth.js";
 import {listMemory,saveMemory,deleteMemory} from "./memory.js";
+import {balance,applyCredit} from "./credits.js";
 
 const port=Number(process.env.PORT||8787);
 
@@ -28,6 +29,12 @@ const server=createServer(async(req,res)=>{
       const input=validateChat(await body(req));
       const result=await routeChat(input);
       return send(res,200,result);
+    }
+    if(req.url==="/credits"){
+      const input=await body(req);
+      if(input.action==="balance")return send(res,200,{balance:balance(auth.userId)});
+      if(input.action==="apply")return send(res,200,{entry:applyCredit(auth.userId,Number(input.delta),String(input.reason||"adjustment"),String(input.idempotencyKey||""))});
+      return send(res,400,{error:"Invalid credit action"});
     }
     if(req.url==="/memory"){
       const input=await body(req);
