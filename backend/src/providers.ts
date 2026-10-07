@@ -32,7 +32,7 @@ async function anthropic(spec:ModelSpec,messages:ChatMessage[]):Promise<Provider
   return {content,provider:"anthropic",model:spec.id};
 }
 async function google(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
-  const {key,base}=requireConfig("google");const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+\`/models/${modelName(spec)}:generateContent?key=${encodeURIComponent(key)}\`;
+  const {key,base}=requireConfig("google");const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+`/models/${modelName(spec)}:generateContent?key=${encodeURIComponent(key)}`;
   const contents=messages.filter(m=>m.role!=="system").map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]}));
   const data=await jsonFetch(url,{method:"POST",body:JSON.stringify({contents})});
   const content=data?.candidates?.[0]?.content?.parts?.map((p:{text?:string})=>p.text||"").join("")||"";if(!content)throw new Error("Provider returned no assistant content");
