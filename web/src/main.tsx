@@ -3,80 +3,36 @@ import {invoke} from "@tauri-apps/api/core";
 import {open,save} from "@tauri-apps/plugin-dialog";
 import {createRoot} from "react-dom/client";
 import {encryptBrowserFile,decryptBrowserFile} from "./streaming";
+import {aiChat,generateImage,generateVideo,aiTool,type ChatMessage} from "./ai";
 import "./styles.css";
-
 type Log={id:string;op:string;file:string;time:string;status:string};
-const key="nexora-audit-v1";
-const load=():Log[]=>{try{return JSON.parse(localStorage.getItem(key)||"[]")}catch{return[]}};
-const saveLogs=(x:Log[])=>localStorage.setItem(key,JSON.stringify(x.slice(0,100)));
+const key="nexora-audit-v1";const load=():Log[]=>{try{return JSON.parse(localStorage.getItem(key)||"[]")}catch{return[]}};const saveLogs=(x:Log[])=>localStorage.setItem(key,JSON.stringify(x.slice(0,100)));
 const download=(bytes:Uint8Array,name:string)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([bytes as BlobPart]));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-
+type Tab="vault"|"chat"|"create"|"images"|"tools"|"activity";
+const tabs:{id:Tab;label:string;icon:string}[]=[{id:"vault",label:"Vault",icon:"⌂"},{id:"chat",label:"AI Chat",icon:"✦"},{id:"create",label:"Create",icon:"◈"},{id:"images",label:"Images",icon:"▧"},{id:"tools",label:"AI Tools",icon:"⚡"},{id:"activity",label:"Activity",icon:"◷"}];
 function App(){
- const[file,setFile]=useState<File|null>(null),[password,setPassword]=useState(""),[status,setStatus]=useState("Ready when you are."),[progress,setProgress]=useState(0),[busy,setBusy]=useState(false),[logs,setLogs]=useState(load),cancel=useRef<AbortController|null>(null);
+ const[file,setFile]=useState<File|null>(null),[password,setPassword]=useState(""),[status,setStatus]=useState("Ready when you are."),[progress,setProgress]=useState(0),[busy,setBusy]=useState(false),[logs,setLogs]=useState(load),[tab,setTab]=useState<Tab>("vault");
+ const[chat,setChat]=useState<ChatMessage[]>([]),[chatInput,setChatInput]=useState(""),[model,setModel]=useState("auto"),[aiBusy,setAiBusy]=useState(false),[imagePrompt,setImagePrompt]=useState(""),[imageResult,setImageResult]=useState<string[]>([]),[videoPrompt,setVideoPrompt]=useState(""),[videoLength,setVideoLength]=useState("30–60 sec"),[tool,setTool]=useState("summarize"),[toolInput,setToolInput]=useState(""),[toolResult,setToolResult]=useState("");
+ const cancel=useRef<AbortController|null>(null);
  const add=(op:string,name:string,status:string)=>{const l={id:crypto.randomUUID(),op,file:name,time:new Date().toISOString(),status};const n=[l,...logs];setLogs(n);saveLogs(n)};
  const run=async(op:"encrypt"|"decrypt")=>{
-  if("__TAURI_INTERNALS__" in window){
-   const input=await open({multiple:false,directory:false,title:op==="encrypt"?"Choose file to encrypt":"Choose .nsv file to decrypt"});
-   if(!input||Array.isArray(input))return;
-   const name=String(input).split(/[\\/]/).pop()||"file";
-   const suggested=op==="encrypt"?name+".nsv":name.replace(/\.nsv$/i,"")||"decrypted-file";
-   const output=await save({defaultPath:suggested,title:op==="encrypt"?"Save encrypted vault":"Save decrypted file"});
-   if(!output)return;
-   setBusy(true);setProgress(0);setStatus(op==="encrypt"?"Encrypting with AES-256-GCM…":"Decrypting and verifying integrity…");
-   try{
-    await invoke(op==="encrypt"?"encrypt_nsv1":"decrypt_nsv1",op==="encrypt"?{input:String(input),output,password,fileName:name,createdAt:new Date().toISOString(),operationId:crypto.randomUUID().replace(/-/g,"")}:{input:String(input),output,password});
-    add(op,name,"Success");setProgress(100);setStatus(op==="encrypt"?"Vault created successfully.":"File restored and integrity verified.");
-   }catch(e){add(op,name,"Failed");setStatus(e instanceof Error?e.message:"Operation failed")}finally{setBusy(false);setPassword("")}
-   return;
-  }
-  if(!file||!password){setStatus("Select a file and enter a password.");return}
-  cancel.current=new AbortController();setBusy(true);setProgress(0);setStatus(op==="encrypt"?"Encrypting locally…":"Decrypting locally…");
-  try{
-   const total=file.size;const update=(n:number)=>setProgress(total===0?100:Math.min(100,Math.round(n/total*100)));
-   if(op==="encrypt"){const r=await encryptBrowserFile(file,password,update,cancel.current.signal);download(r.data,file.name+".nsv");add(op,file.name,"Success");setStatus("Vault created successfully.")}
-   else{const r=await decryptBrowserFile(file,password,update,cancel.current.signal);download(r.data,r.header.originalName);add(op,r.header.originalName,"Success");setStatus("File restored and integrity verified.")}
-  }catch(e){const msg=e instanceof DOMException&&e.name==="AbortError"?"Operation cancelled":e instanceof Error?e.message:"Operation failed";add(op,file.name,msg==="Operation cancelled"?"Cancelled":"Failed");setStatus(msg)}
-  finally{cancel.current=null;setBusy(false);setPassword("")}
+  if("__TAURI_INTERNALS__" in window){const input=await open({multiple:false,directory:false,title:op==="encrypt"?"Choose file to encrypt":"Choose .nsv file to decrypt"});if(!input||Array.isArray(input))return;const name=String(input).split(/[\\/]/).pop()||"file";const suggested=op==="encrypt"?name+".nsv":name.replace(/\.nsv$/i,"")||"decrypted-file";const output=await save({defaultPath:suggested,title:op==="encrypt"?"Save encrypted vault":"Save decrypted file"});if(!output)return;setBusy(true);setProgress(0);setStatus(op==="encrypt"?"Encrypting with AES-256-GCM…":"Decrypting and verifying integrity…");try{await invoke(op==="encrypt"?"encrypt_nsv1":"decrypt_nsv1",op==="encrypt"?{input:String(input),output,password,fileName:name,createdAt:new Date().toISOString(),operationId:crypto.randomUUID().replace(/-/g,"")}:{input:String(input),output,password});add(op,name,"Success");setProgress(100);setStatus(op==="encrypt"?"Vault created successfully.":"File restored and integrity verified.")}catch(e){add(op,name,"Failed");setStatus(e instanceof Error?e.message:"Operation failed")}finally{setBusy(false);setPassword("")}return}
+  if(!file||!password){setStatus("Select a file and enter a password.");return}cancel.current=new AbortController();setBusy(true);setProgress(0);setStatus(op==="encrypt"?"Encrypting locally…":"Decrypting locally…");try{const total=file.size;const update=(n:number)=>setProgress(total===0?100:Math.min(100,Math.round(n/total*100)));if(op==="encrypt"){const r=await encryptBrowserFile(file,password,update,cancel.current.signal);download(r.data,file.name+".nsv");add(op,file.name,"Success");setStatus("Vault created successfully.")}else{const r=await decryptBrowserFile(file,password,update,cancel.current.signal);download(r.data,r.header.originalName);add(op,r.header.originalName,"Success");setStatus("File restored and integrity verified.")}}catch(e){const msg=e instanceof DOMException&&e.name==="AbortError"?"Operation cancelled":e instanceof Error?e.message:"Operation failed";add(op,file.name,msg==="Operation cancelled"?"Cancelled":"Failed");setStatus(msg)}finally{cancel.current=null;setBusy(false);setPassword("")}
  };
+ const send=async()=>{if(!chatInput.trim()||aiBusy)return;const user:ChatMessage={id:crypto.randomUUID(),role:"user",content:chatInput.trim(),createdAt:new Date().toISOString()};const next=[...chat,user];setChat(next);setChatInput("");setAiBusy(true);try{const r=await aiChat(next,model);setChat([...next,{id:crypto.randomUUID(),role:"assistant",content:r.content||r.message||"No response returned.",createdAt:new Date().toISOString()}])}catch(e){setChat([...next,{id:crypto.randomUUID(),role:"assistant",content:e instanceof Error?e.message:"AI service unavailable. Configure the secure AI endpoint.",createdAt:new Date().toISOString()}])}finally{setAiBusy(false)}};
+ const createImage=async()=>{if(!imagePrompt.trim())return;setAiBusy(true);try{const r=await generateImage(imagePrompt,{model});setImageResult(r.images||(r.imageUrl?[r.imageUrl]:[]))}catch(e){setStatus(e instanceof Error?e.message:"Image generation unavailable.")}finally{setAiBusy(false)}};
+ const createVideo=async()=>{if(!videoPrompt.trim())return;setAiBusy(true);try{await generateVideo(videoPrompt,{model,duration:videoLength,continuity:true,characterConsistency:true,voiceReference:true});setStatus("Video generation request submitted.")}catch(e){setStatus(e instanceof Error?e.message:"Video generation unavailable.")}finally{setAiBusy(false)}};
+ const runTool=async()=>{if(!toolInput.trim())return;setAiBusy(true);try{const r=await aiTool(tool,toolInput);setToolResult(r.content||r.message||JSON.stringify(r.data||{},null,2))}catch(e){setToolResult(e instanceof Error?e.message:"AI tool unavailable.")}finally{setAiBusy(false)}};
  return <main className="shell">
-  <header className="hero">
-   <div className="brand-mark"><span>N</span></div>
-   <div className="eyebrow">NEXORA <em>SECURE VAULT</em></div>
-   <h1>Protect what <span>matters.</span></h1>
-   <p>Private, authenticated file encryption built for people who take their data seriously.</p>
-   <div className="trust-row"><span>● AES-256-GCM</span><span>● Argon2id</span><span>● Local-first</span></div>
-  </header>
-  <section className="card vault-card">
-   <div className="section-title"><div><span className="kicker">SECURE WORKSPACE</span><h2>Encrypt or decrypt a file</h2></div><div className="lock">⌁</div></div>
-   <label className={"drop "+(file?"selected":"")}>
-    <input type="file" onChange={e=>setFile(e.target.files?.[0]??null)}/>
-    <div className="upload-icon">{file?"✓":"↑"}</div>
-    <strong>{file?file.name:"Choose a file"}</strong>
-    <span>{file?((file.size/1048576).toFixed(2)+" MB • Ready to process"):"Drop it here or tap to browse • Processing stays local"}</span>
-   </label>
-   <div className="field">
-    <label htmlFor="password">Encryption password</label>
-    <input id="password" className="password" type="password" autoComplete="new-password" placeholder="Enter a strong password" value={password} onChange={e=>setPassword(e.target.value)}/>
-   </div>
-   <div className="actions">
-    <button className="primary" disabled={busy||!file} onClick={()=>run("encrypt")}><span>Encrypt</span><small>→</small></button>
-    <button className="secondary" disabled={busy||!file} onClick={()=>run("decrypt")}><span>Decrypt</span><small>→</small></button>
-    {busy&&<button className="cancel" onClick={()=>cancel.current?.abort()}>Cancel</button>}
-   </div>
-   {busy&&<div className="progress-wrap"><div className="progress"><i style={{width:progress+"%"}}/></div><span>{progress}%</span></div>}
-   <div className="status"><span className={busy?"pulse":"dot"}></span>{status}{busy&&<b>{progress}%</b>}</div>
-  </section>
-  <section className="feature-grid">
-   <div><span>01</span><strong>Private by design</strong><p>Browser processing keeps plaintext off a server.</p></div>
-   <div><span>02</span><strong>Authenticated</strong><p>Tamper detection is built into every encrypted chunk.</p></div>
-   <div><span>03</span><strong>Cross-platform</strong><p>Designed around one interoperable NSV1 format.</p></div>
-  </section>
-  <section className="audit">
-   <div className="row"><div><span className="kicker">LOCAL HISTORY</span><h2>Recent activity</h2></div><button className="small" onClick={()=>{setLogs([]);saveLogs([])}} disabled={!logs.length}>Clear</button></div>
-   {logs.length?logs.map(x=><div className="log" key={x.id}><div className="log-op">{x.op==="encrypt"?"↑":"↓"}</div><div><b>{x.file}</b><span>{new Date(x.time).toLocaleString()}</span></div><strong className={x.status==="Success"?"ok":""}>{x.status}</strong></div>):<div className="empty">No activity yet. Your local history will appear here.</div>}
-   <small>Passwords, raw encryption keys and plaintext contents are never stored in this activity log.</small>
-  </section>
-  <footer><span>NEXORA</span><span>SECURE BY DESIGN</span><span>NSV1 • v0.2</span></footer>
+  <header className="hero"><div className="brand-mark"><span>N</span></div><div className="eyebrow">NEXORA <em>AI • SECURE VAULT</em></div><h1>One workspace. <span>More intelligence.</span></h1><p>Secure files, intelligent conversations and creative AI tools in one premium workspace.</p><div className="trust-row"><span>● AES-256-GCM</span><span>● MULTI-MODAL AI</span><span>● LOCAL-FIRST VAULT</span></div></header>
+  <nav className="nav">{tabs.map(t=><button key={t.id} className={tab===t.id?"active":""} onClick={()=>setTab(t.id)}><b>{t.icon}</b><span>{t.label}</span></button>)}</nav>
+  {tab==="vault"&&<><section className="card vault-card"><div className="section-title"><div><span className="kicker">SECURE WORKSPACE</span><h2>Encrypt or decrypt a file</h2></div><div className="lock">⌁</div></div><label className={"drop "+(file?"selected":"")}><input type="file" onChange={e=>setFile(e.target.files?.[0]??null)}/><div className="upload-icon">{file?"✓":"↑"}</div><strong>{file?file.name:"Choose a file"}</strong><span>{file?((file.size/1048576).toFixed(2)+" MB • Ready to process"):"Drop it here or tap to browse • Processing stays local"}</span></label><div className="field"><label htmlFor="password">Encryption password</label><input id="password" className="password" type="password" autoComplete="new-password" placeholder="Enter a strong password" value={password} onChange={e=>setPassword(e.target.value)}/></div><div className="actions"><button className="primary" disabled={busy||!file} onClick={()=>run("encrypt")}><span>Encrypt</span><small>→</small></button><button className="secondary" disabled={busy||!file} onClick={()=>run("decrypt")}><span>Decrypt</span><small>→</small></button>{busy&&<button className="cancel" onClick={()=>cancel.current?.abort()}>Cancel</button>}</div>{busy&&<div className="progress-wrap"><div className="progress"><i style={{width:progress+"%"}}/></div><span>{progress}%</span></div>}<div className="status"><span className={busy?"pulse":"dot"}></span>{status}{busy&&<b>{progress}%</b>}</div></section><section className="feature-grid"><div><span>01</span><strong>Private by design</strong><p>Browser processing keeps plaintext off a server.</p></div><div><span>02</span><strong>Authenticated</strong><p>Tamper detection is built into every encrypted chunk.</p></div><div><span>03</span><strong>AI workspace</strong><p>Chat, create, analyze and automate from the same interface.</p></div></section></>}
+  {tab==="chat"&&<section className="card ai-panel"><div className="section-title"><div><span className="kicker">NEXORA INTELLIGENCE</span><h2>AI Chat</h2></div><select value={model} onChange={e=>setModel(e.target.value)}><option value="auto">Auto</option><option value="fast">Fast</option><option value="reasoning">Reasoning</option><option value="creative">Creative</option></select></div><div className="chat-window">{chat.length?chat.map(m=><div className={"bubble "+m.role} key={m.id}><span>{m.role==="user"?"You":"Nexora"}</span><p>{m.content}</p></div>):<div className="empty"><strong>Ask Nexora anything.</strong><br/>Reason, write, analyze, plan, code or transform ideas.</div>}</div><div className="chat-compose"><textarea value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Message Nexora…" onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}}/><button className="primary" onClick={send} disabled={aiBusy||!chatInput.trim()}>Send ✦</button></div></section>}
+  {tab==="create"&&<section className="card ai-panel"><span className="kicker">CREATIVE STUDIO</span><h2>Generate with Nexora</h2><div className="creator-grid"><div className="creator-box"><label>Image generation</label><textarea value={imagePrompt} onChange={e=>setImagePrompt(e.target.value)} placeholder="Describe the image you want…"/><button className="primary wide" disabled={aiBusy} onClick={createImage}>Generate image ✦</button></div><div className="creator-box"><label>Long-form video</label><textarea value={videoPrompt} onChange={e=>setVideoPrompt(e.target.value)} placeholder="Describe the cinematic video…"/><select value={videoLength} onChange={e=>setVideoLength(e.target.value)}><option>30–60 sec</option><option>1–5 min</option><option>10–20 min</option><option>30–40 min</option><option>50–60 min</option></select><button className="secondary wide" disabled={aiBusy} onClick={createVideo}>Generate video ◈</button></div></div><p className="hint">Long-form generation is orchestrated as continuous segments with character, scene and voice-reference continuity.</p></section>}
+  {tab==="images"&&<section className="card ai-panel"><div className="section-title"><div><span className="kicker">CREATIVE LIBRARY</span><h2>My Images</h2></div></div>{imageResult.length?<div className="image-grid">{imageResult.map((u,i)=><img src={u} key={i} alt={"Generated "+(i+1)}/>)}</div>:<div className="empty">Generated images will appear here and can be saved locally.</div>}</section>}
+  {tab==="tools"&&<section className="card ai-panel"><span className="kicker">AI TOOLBOX</span><h2>Work faster with specialized tools</h2><div className="tool-row"><select value={tool} onChange={e=>setTool(e.target.value)}><option value="summarize">Summarize</option><option value="rewrite">Rewrite</option><option value="translate">Translate</option><option value="extract">Extract information</option><option value="analyze">Analyze</option><option value="code">Code assistant</option><option value="research">Research</option></select></div><textarea className="tool-input" value={toolInput} onChange={e=>setToolInput(e.target.value)} placeholder="Paste text, instructions or data…"/><button className="primary wide" disabled={aiBusy} onClick={runTool}>Run AI tool ⚡</button>{toolResult&&<pre className="tool-result">{toolResult}</pre>}</section>}
+  {tab==="activity"&&<section className="audit"><div className="row"><div><span className="kicker">LOCAL HISTORY</span><h2>Recent activity</h2></div><button className="small" onClick={()=>{setLogs([]);saveLogs([])}} disabled={!logs.length}>Clear</button></div>{logs.length?logs.map(x=><div className="log" key={x.id}><div className="log-op">{x.op==="encrypt"?"↑":"↓"}</div><div><b>{x.file}</b><span>{new Date(x.time).toLocaleString()}</span></div><strong className={x.status==="Success"?"ok":""}>{x.status}</strong></div>):<div className="empty">No activity yet.</div>}<small>Passwords, raw encryption keys and plaintext contents are never stored in this activity log.</small></section>}
+  <footer><span>NEXORA</span><span>AI + SECURE VAULT</span><span>NSV1 • v0.3</span></footer>
  </main>
 }
 createRoot(document.getElementById("root")!).render(<App/>);
