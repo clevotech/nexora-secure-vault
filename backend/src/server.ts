@@ -4,6 +4,7 @@ import {authenticate} from "./auth.js";
 import {listMemory,saveMemory,deleteMemory} from "./memory.js";
 import {balance,applyCredit} from "./credits.js";
 import {createJob,getJob,updateJob} from "./jobs.js";
+import {generateImage,transcribe,speak} from "./media.js";
 
 const port=Number(process.env.PORT||8787);
 
@@ -44,6 +45,15 @@ const server=createServer(async(req,res)=>{
       if(input.action==="delete")return send(res,200,{deleted:deleteMemory(auth.userId,input.id)});
       return send(res,400,{error:"Invalid memory action"});
     }
+    if(req.url==="/image"){
+      const input=await body(req);return send(res,200,await generateImage(String(input.prompt||""),typeof input.model==="string"?input.model:undefined));
+    }
+    if(req.url==="/voice/transcribe"){
+      const input=await body(req);return send(res,200,await transcribe(String(input.audioBase64||""),String(input.filename||"audio.webm")));
+    }
+    if(req.url==="/voice/speak"){
+      const input=await body(req);return send(res,200,await speak(String(input.text||""),typeof input.voice==="string"?input.voice:undefined));
+    }
     if(req.url==="/jobs"){
       const input=await body(req);
       if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind))return send(res,202,{job:createJob(auth.userId,input.kind,input.metadata||{})});
@@ -51,7 +61,7 @@ const server=createServer(async(req,res)=>{
       if(input.action==="update" && ["queued","running","completed","failed"].includes(input.status))return send(res,200,{job:updateJob(auth.userId,String(input.id),input.status)});
       return send(res,400,{error:"Invalid job action"});
     }
-    if(["/image","/video","/tools","/voice/transcribe","/voice/speak","/integrations"].includes(req.url||"")){
+    if(["/video","/tools","/integrations"].includes(req.url||"")){
       return send(res,501,{error:"Route scaffolded; connect the corresponding service adapter before production use."});
     }
     return send(res,404,{error:"Not found"});
