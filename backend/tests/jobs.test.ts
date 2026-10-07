@@ -1,0 +1,2 @@
+import {test} from "node:test";import assert from "node:assert/strict";import {createJob,getJob,updateJob} from "../src/jobs.js";
+test("media jobs are user scoped",()=>{const j=createJob("a","video",{duration:"1-5m"});assert.equal(getJob("b",j.id),undefined);assert.equal(updateJob("a",j.id,"running").status,"running");});
