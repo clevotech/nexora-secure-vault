@@ -27,3 +27,8 @@ The web client is intentionally static and never contains provider API keys. Dep
 10. Verify webhook signatures for billing and asynchronous generation providers.
 
 The repository does not ship provider credentials or pretend that GitHub Pages can execute these server-side routes. GitHub Pages hosts the static client; the backend must be deployed to a serverless/container platform with secrets configured there.
+
+
+## Provider registry baseline
+
+Configure adapters for OpenAI, Anthropic, Google Gemini, xAI, DeepSeek and Mistral. Keep the registry server-side so models can be upgraded, retired or rerouted without rebuilding the client. Provider selection from the UI is a preference; the backend remains authoritative for availability, safety, quota and fallback.
