@@ -23,3 +23,7 @@ Each chunk contains:
 All header metadata and chunk sequence information are authenticated as associated data.
 
 The format is versioned so future cryptographic migrations can be implemented without ambiguity.
+
+
+### Empty files
+Empty files still contain one authenticated AES-256-GCM record (sequence 0) containing zero plaintext bytes. This authenticates the header and password even when the original file has no data.
