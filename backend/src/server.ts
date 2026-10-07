@@ -23,8 +23,11 @@ async function body(req:import("node:http").IncomingMessage,maxBytes=2_000_000){
 }
 
 const server=createServer(async(req,res)=>{
-  const origin=process.env.NEXORA_CORS_ORIGIN;
-  res.setHeader("Access-Control-Allow-Origin",origin||"*");
+  const configuredOrigin=process.env.NEXORA_CORS_ORIGIN||"";
+  const requestOrigin=req.headers.origin;
+  if(requestOrigin&&configuredOrigin.split(",").map(x=>x.trim()).filter(Boolean).includes(requestOrigin)){
+    res.setHeader("Access-Control-Allow-Origin",requestOrigin);
+  }
   res.setHeader("Vary","Origin");
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
@@ -75,9 +78,6 @@ const server=createServer(async(req,res)=>{
         return send(res,202,{job:await jobs.create(auth.userId,input.kind,input.metadata||{})});
       }
       if(input.action==="get")return send(res,200,{job:await jobs.get(auth.userId,String(input.id))||null});
-      if(input.action==="update" && ["queued","running","completed","failed"].includes(input.status)){
-        return send(res,200,{job:await jobs.update(auth.userId,String(input.id),input.status)});
-      }
       return send(res,400,{error:"Invalid job action"});
     }
     if(["/video","/tools","/integrations"].includes(req.url||"")){
@@ -86,7 +86,7 @@ const server=createServer(async(req,res)=>{
     return send(res,404,{error:"Not found"});
   }catch(error){
     const message=error instanceof Error?error.message:"Request failed";
-    const status=/Authentication required|Invalid development authentication token|Production authentication verifier/.test(message)?401:message==="Request too large"?413:400;
+    const status=/Authentication required|Invalid development authentication token|Production authentication verifier|Authentication failed|Authenticated token/.test(message)?401:message==="Request too large"?413:400;
     return send(res,status,{error:message});
   }
 });
