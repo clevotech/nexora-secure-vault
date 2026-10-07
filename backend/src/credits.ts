@@ -31,3 +31,6 @@ export class CreditStorePostgres{
   }
 }
 function validate(delta:number,idempotencyKey:string){if(!Number.isFinite(delta)||delta===0)throw new Error("Invalid credit delta");if(!idempotencyKey||idempotencyKey.length>200)throw new Error("Invalid idempotency key");}
+const defaultCreditStore=new CreditStoreMemory();
+export function balance(userId:string){return defaultCreditStore.balance(userId);}
+export function applyCredit(userId:string,delta:number,reason:string,idempotencyKey:string){return defaultCreditStore.apply(userId,delta,reason,idempotencyKey);}
