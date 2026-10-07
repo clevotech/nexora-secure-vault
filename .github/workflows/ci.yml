@@ -52,7 +52,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm install
       - run: npm run build
-      - run: npx tauri build --debug
+      - run: npx tauri build --debug --config windows/tauri.conf.json
 
   android:
     runs-on: ubuntu-latest
