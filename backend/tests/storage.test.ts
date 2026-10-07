@@ -1,0 +1,2 @@
+import {test} from "node:test";import assert from "node:assert/strict";import {MemoryStoreMemory} from "../src/storage.js";
+test("memory store isolates users",async()=>{const s=new MemoryStoreMemory();const a=await s.save("a","one");await s.save("b","two");assert.equal((await s.list("a")).length,1);assert.equal(await s.delete("b",a.id),false);});
