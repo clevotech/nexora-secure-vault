@@ -7,9 +7,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check required security documentation
+      - name: Check security documentation
         run: |
           test -f SECURITY.md
           test -f docs/ARCHITECTURE.md
           test -f docs/FORMAT.md
           test -f audit/SCHEMA.md
+      - name: Check web manifest
+        run: test -f web/package.json
+      - name: Check client foundations
+        run: |
+          test -f windows/src-tauri/Cargo.toml
+          test -f android/protocol/NSV1.md
