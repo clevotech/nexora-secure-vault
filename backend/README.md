@@ -19,7 +19,8 @@ This backend is the server-side execution boundary for Nexora's multi-provider A
 - POST /image — scaffold; connect an image adapter.
 - POST /video — scaffold; connect the long-form job queue/orchestrator.
 - POST /tools — scaffold; connect tool execution.
-- POST /memory — scaffold; connect authenticated persistent memory storage.
+- POST /memory — authenticated development memory store; replace with durable encrypted storage for production.
+- POST /credits — authenticated idempotent development credit ledger; connect signed billing webhooks for production.
 - POST /voice/transcribe — scaffold; connect authorized transcription.
 - POST /voice/speak — scaffold; connect TTS.
 - POST /integrations — scaffold; connect connector management.
