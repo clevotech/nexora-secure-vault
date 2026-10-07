@@ -1,5 +1,6 @@
 import React,{useRef,useState} from "react";
 import {invoke} from "@tauri-apps/api/core";
+import {open,save} from "@tauri-apps/plugin-dialog";
 import {createRoot} from "react-dom/client";
 import {encryptBrowserFile,decryptBrowserFile} from "./streaming";
 import "./styles.css";
@@ -10,13 +11,16 @@ function App(){const[file,setFile]=useState<File|null>(null),[password,setPasswo
 const add=(op:string,name:string,status:string)=>{const l={id:crypto.randomUUID(),op,file:name,time:new Date().toISOString(),status};const n=[l,...logs];setLogs(n);save(n)};
 const run=async(op:"encrypt"|"decrypt")=>{
 if(window.__TAURI_INTERNALS__){
- const outputName=op==="encrypt"?file.name+".nsv":file.name.replace(/\.nsv$/i,"")||"decrypted-file";
- const output=prompt("Enter output path",outputName); if(!output)return;
- setBusy(true);setStatus(op==="encrypt"?"Encrypting securely…":"Decrypting securely…");
+ const input=await open({multiple:false,directory:false,title:op==="encrypt"?"Choose file to encrypt":"Choose .nsv file to decrypt"});
+ if(!input||Array.isArray(input))return;
+ const suggested=op==="encrypt"?String(input).split(/[\\\\/]/).pop()+".nsv":String(input).split(/[\\\\/]/).pop()?.replace(/\\.nsv$/i,"")||"decrypted-file";
+ const output=await save({defaultPath:suggested,title:op==="encrypt"?"Save encrypted vault":"Save decrypted file"});
+ if(!output)return;
+ setBusy(true);setProgress(0);setStatus(op==="encrypt"?"Encrypting securely…":"Decrypting securely…");
  try{
-  await invoke(op==="encrypt"?"encrypt_nsv1":"decrypt_nsv1",op==="encrypt"?{input:(file as any).path,output,password,fileName:file.name,createdAt:new Date().toISOString(),operationId:crypto.randomUUID().replace(/-/g,"")}:{input:(file as any).path,output,password});
-  add(op,file.name,"Success");setProgress(100);setStatus("Completed successfully.");
- }catch(e){add(op,file.name,"Failed");setStatus(e instanceof Error?e.message:"Operation failed")}finally{setBusy(false)}
+  await invoke(op==="encrypt"?"encrypt_nsv1":"decrypt_nsv1",op==="encrypt"?{input:String(input),output,password,fileName:String(input).split(/[\\\\/]/).pop()||"file",createdAt:new Date().toISOString(),operationId:crypto.randomUUID().replace(/-/g,"")}:{input:String(input),output,password});
+  add(op,String(input).split(/[\\\\/]/).pop()||"file","Success");setProgress(100);setStatus("Completed successfully.");
+ }catch(e){add(op,String(input).split(/[\\\\/]/).pop()||"file","Failed");setStatus(e instanceof Error?e.message:"Operation failed")}finally{setBusy(false)}
  return;
 }if(!file||!password){setStatus("Select a file and enter a password.");return}cancel.current=new AbortController();setBusy(true);setProgress(0);setStatus(op==="encrypt"?"Encrypting locally…":"Decrypting locally…");try{const total=file.size;const update=(n:number)=>setProgress(total===0?100:Math.min(100,Math.round(n/total*100)));if(op==="encrypt"){const r=await encryptBrowserFile(file,password,update,cancel.current.signal);download(r.data,file.name+".nsv");add(op,file.name,"Success");setStatus("Encrypted successfully.")}else{const r=await decryptBrowserFile(file,password,update,cancel.current.signal);download(r.data,r.header.originalName);add(op,r.header.originalName,"Success");setStatus("Decrypted and integrity verified.")}}catch(e){const msg=e instanceof DOMException&&e.name==="AbortError"?"Operation cancelled":e instanceof Error?e.message:"Operation failed";add(op,file.name,msg==="Operation cancelled"?"Cancelled":"Failed");setStatus(msg)}finally{cancel.current=null;setBusy(false)}};
 return <main className="shell"><header><div className="brand">NEXORA</div><h1>Secure Vault</h1><p>Private file encryption and authenticated decryption.</p></header><section className="card"><label className="drop"><input type="file" onChange={e=>setFile(e.target.files?.[0]??null)}/><strong>{file?file.name:"Select a file"}</strong><span>{file?((file.size/1048576).toFixed(2)+" MB"):"Processing stays in your browser."}</span></label><input className="password" type="password" autoComplete="new-password" placeholder="Encryption password" value={password} onChange={e=>setPassword(e.target.value)}/><div className="actions"><button disabled={busy||!file} onClick={()=>run("encrypt")}>{busy?"Processing…":"Encrypt"}</button><button className="secondary" disabled={busy||!file} onClick={()=>run("decrypt")}>Decrypt</button>{busy&&<button className="cancel" onClick={()=>cancel.current?.abort()}>Cancel</button>}</div>{busy&&<div className="progress"><i style={{width:progress+"%"}}/></div>}<p className="status">{status}{busy?" "+progress+"%":""}</p></section><section className="audit"><div className="row"><h2>Activity</h2><button className="small" onClick={()=>{setLogs([]);save([])}}>Clear</button></div>{logs.map(x=><div className="log" key={x.id}><b>{x.op}</b><span>{x.file}</span><span>{new Date(x.time).toLocaleString()}</span><span>{x.status}</span></div>)}<small>Passwords and raw encryption keys are never stored.</small></section></main>}
