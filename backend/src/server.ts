@@ -32,7 +32,7 @@ const server=createServer(async(req,res)=>{
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
-    const auth=authenticate(authHeaders);
+    const auth=await authenticate(authHeaders);
     if(req.url==="/chat"){
       const input=validateChat(await body(req));
       return send(res,200,await routeChat(input));
