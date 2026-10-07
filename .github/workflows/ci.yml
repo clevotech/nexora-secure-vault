@@ -51,7 +51,7 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
-      - run: npx tauri build --debug --config ../windows/tauri.conf.json
+      - run: cd windows && npx tauri build --debug --config tauri.conf.json
         working-directory: web
 
   android:
