@@ -54,10 +54,12 @@ class MainActivity : ComponentActivity() {
                     OutlinedTextField(value=password,onValueChange={password=it},label={Text("Password")},singleLine=true)
                     Button(onClick={
                         decryptMode=false
+                        currentPassword=password
                         openDocument.launch(arrayOf("*/*"))
                     }) { Text("Encrypt file") }
                     Button(onClick={
                         decryptMode=true
+                        currentPassword=password
                         openDocument.launch(arrayOf("application/octet-stream","*/*"))
                     }) { Text("Decrypt .nsv file") }
                     Text(status, style=MaterialTheme.typography.bodyMedium)
