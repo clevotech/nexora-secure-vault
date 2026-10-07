@@ -46,13 +46,15 @@ object NsvContainer {
             resolver.openOutputStream(output, "w")!!.buffered().use { dst ->
                 dst.write(u32(hb.size)); dst.write(hb)
                 val buf = ByteArray(NsvProtocol.CHUNK_SIZE); var seq = 0
+                var wrote = false
                 while (true) {
                     val n = src.read(buf); if (n < 0) break; if (n == 0) continue
                     val nonce = NsvCrypto.newNonce()
                     val ct = NsvCrypto.encryptChunk(key, buf.copyOf(n), nonce, hb + u32(seq))
                     dst.write(u32(seq)); dst.write(byteArrayOf(12)); dst.write(nonce); dst.write(u32(ct.size)); dst.write(ct)
-                    total += n; seq++
+                    total += n; seq++; wrote = true
                 }
+                if (!wrote) { val nonce=NsvCrypto.newNonce(); val ct=NsvCrypto.encryptChunk(key, ByteArray(0), nonce, hb + u32(0)); dst.write(u32(0)); dst.write(byteArrayOf(12)); dst.write(nonce); dst.write(u32(ct.size)); dst.write(ct) }
                 dst.flush()
             }
         }
