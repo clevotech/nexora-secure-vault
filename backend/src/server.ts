@@ -15,10 +15,10 @@ async function body(req:import("node:http").IncomingMessage){
 const server=createServer(async(req,res)=>{
   res.setHeader("Access-Control-Allow-Origin",process.env.NEXORA_CORS_ORIGIN||"*");
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Methods","POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
   if(req.method==="OPTIONS"){res.statusCode=204;return res.end();}
+  if(req.url==="/health" && req.method==="GET"){return send(res,200,{ok:true,service:"nexora-ai-backend"});}
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
-  if(req.url==="/health"){return send(res,200,{ok:true,service:"nexora-ai-backend"});}
   try{
     if(req.url==="/chat"){
       const input=validateChat(await body(req));
