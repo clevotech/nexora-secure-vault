@@ -21,3 +21,6 @@ This project is designed for authorized encryption/decryption of files. It does 
 
 ## Status
 Foundation initialized. See `docs/ARCHITECTURE.md` and `docs/FORMAT.md`.
+
+## Web deployment
+The web client is deployed through GitHub Actions and GitHub Pages from the `main` branch.
