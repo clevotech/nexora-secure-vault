@@ -86,6 +86,8 @@ jobs:
           gradle-version: "8.13"
       - run: gradle :app:testDebugUnitTest
       - run: gradle :app:assembleDebug --stacktrace --info
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g"
 
   repository-sanity:
     runs-on: ubuntu-latest
