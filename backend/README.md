@@ -47,8 +47,8 @@ Set VITE_NEXORA_AI_ENDPOINT in the web deployment to the backend HTTPS origin.
 
 ## Production requirements still outstanding
 
-1. Configure a real JWT/OIDC verifier and issuer/audience; the current development auth remains fail-closed.
-2. Add durable user/account tables and move credits/jobs from process memory into PostgreSQL.
+1. Configure a real JWT/OIDC verifier and issuer/audience; the current development auth remains fail-closed. The JWT implementation is prepared in the auth adapter and must be wired into the HTTP server before production.
+2. Set `DATABASE_URL` to enable the PostgreSQL memory, credit and job stores; the schema is initialized at startup.
 3. Add a real queue/worker and object storage for asynchronous media results.
 4. Keep video provider-neutral until a currently supported provider is selected; do not wire Nexora to a retired video API.
 5. Add signed billing webhooks and durable idempotent credit accounting.
