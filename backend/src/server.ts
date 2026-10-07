@@ -91,4 +91,8 @@ const server=createServer(async(req,res)=>{
   }
 });
 
-async function start(){\n  if(pool)await initializeDatabase(pool);\n  server.listen(port,()=>console.log(`Nexora AI backend listening on :${port}`));\n}\nstart().catch(error=>{console.error("Nexora backend startup failed",error);process.exit(1);});
+async function start(){
+  if(pool)await initializeDatabase(pool);
+  server.listen(port,()=>console.log(`Nexora AI backend listening on :${port}`));
+}
+start().catch(error=>{console.error("Nexora backend startup failed",error);process.exit(1);});
