@@ -3,6 +3,7 @@ import {routeChat,validateChat} from "./router.js";
 import {authenticate} from "./auth.js";
 import {listMemory,saveMemory,deleteMemory} from "./memory.js";
 import {balance,applyCredit} from "./credits.js";
+import {createJob,getJob,updateJob} from "./jobs.js";
 
 const port=Number(process.env.PORT||8787);
 
@@ -42,6 +43,13 @@ const server=createServer(async(req,res)=>{
       if(input.action==="save")return send(res,200,{data:saveMemory(auth.userId,input.content)});
       if(input.action==="delete")return send(res,200,{deleted:deleteMemory(auth.userId,input.id)});
       return send(res,400,{error:"Invalid memory action"});
+    }
+    if(req.url==="/jobs"){
+      const input=await body(req);
+      if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind))return send(res,202,{job:createJob(auth.userId,input.kind,input.metadata||{})});
+      if(input.action==="get")return send(res,200,{job:getJob(auth.userId,String(input.id))||null});
+      if(input.action==="update" && ["queued","running","completed","failed"].includes(input.status))return send(res,200,{job:updateJob(auth.userId,String(input.id),input.status)});
+      return send(res,400,{error:"Invalid job action"});
     }
     if(["/image","/video","/tools","/voice/transcribe","/voice/speak","/integrations"].includes(req.url||"")){
       return send(res,501,{error:"Route scaffolded; connect the corresponding service adapter before production use."});
