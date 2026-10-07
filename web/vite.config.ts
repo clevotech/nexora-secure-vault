@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins:[react()],
-  server:{port:5173},
+  
   resolve:{preserveSymlinks:true},
+  server:{port:5173,fs:{allow:[".."]}},
   optimizeDeps:{exclude:["@nexora/secure-core"]}
 });
