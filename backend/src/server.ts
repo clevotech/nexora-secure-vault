@@ -1,5 +1,7 @@
 import {createServer} from "node:http";
 import {routeChat,validateChat} from "./router.js";
+import {authenticate} from "./auth.js";
+import {listMemory,saveMemory,deleteMemory} from "./memory.js";
 
 const port=Number(process.env.PORT||8787);
 
@@ -20,12 +22,21 @@ const server=createServer(async(req,res)=>{
   if(req.url==="/health" && req.method==="GET"){return send(res,200,{ok:true,service:"nexora-ai-backend"});}
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
   try{
+    const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
+    const auth=authenticate(authHeaders);
     if(req.url==="/chat"){
       const input=validateChat(await body(req));
       const result=await routeChat(input);
       return send(res,200,result);
     }
-    if(["/image","/video","/tools","/memory","/voice/transcribe","/voice/speak","/integrations"].includes(req.url||"")){
+    if(req.url==="/memory"){
+      const input=await body(req);
+      if(input.action==="list")return send(res,200,{data:listMemory(auth.userId)});
+      if(input.action==="save")return send(res,200,{data:saveMemory(auth.userId,input.content)});
+      if(input.action==="delete")return send(res,200,{deleted:deleteMemory(auth.userId,input.id)});
+      return send(res,400,{error:"Invalid memory action"});
+    }
+    if(["/image","/video","/tools","/voice/transcribe","/voice/speak","/integrations"].includes(req.url||"")){
       return send(res,501,{error:"Route scaffolded; connect the corresponding service adapter before production use."});
     }
     return send(res,404,{error:"Not found"});
