@@ -1,13 +1,14 @@
 import {createServer} from "node:http";
 import {routeChat,validateChat} from "./router.js";
 import {authenticate} from "./auth.js";
-import {createMemoryStore} from "./storage.js";
-import {balance,applyCredit} from "./credits.js";
-import {createJob,getJob,updateJob} from "./jobs.js";
+import {createDatabasePool,initializeDatabase} from "./db.js";
+import {createPersistence} from "./persistence.js";
 import {generateImage,transcribe,speak} from "./media.js";
 
 const port=Number(process.env.PORT||8787);
-const memory=createMemoryStore();
+const pool=createDatabasePool();
+const persistence=createPersistence(pool);
+const {memory,credits,jobs}=persistence;
 
 function send(res:import("node:http").ServerResponse,status:number,data:unknown){
   res.statusCode=status;res.setHeader("Content-Type","application/json; charset=utf-8");res.end(JSON.stringify(data));
@@ -39,9 +40,9 @@ const server=createServer(async(req,res)=>{
     }
     if(req.url==="/credits"){
       const input=await body(req);
-      if(input.action==="balance")return send(res,200,{balance:balance(auth.userId)});
+      if(input.action==="balance")return send(res,200,{balance:await credits.balance(auth.userId)});
       if(input.action==="apply"){
-        return send(res,200,{entry:applyCredit(auth.userId,Number(input.delta),String(input.reason||"adjustment"),String(input.idempotencyKey||""))});
+        return send(res,200,{entry:await credits.apply(auth.userId,Number(input.delta),String(input.reason||"adjustment"),String(input.idempotencyKey||""))});
       }
       return send(res,400,{error:"Invalid credit action"});
     }
@@ -71,11 +72,11 @@ const server=createServer(async(req,res)=>{
     if(req.url==="/jobs"){
       const input=await body(req);
       if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind)){
-        return send(res,202,{job:createJob(auth.userId,input.kind,input.metadata||{})});
+        return send(res,202,{job:await jobs.create(auth.userId,input.kind,input.metadata||{})});
       }
-      if(input.action==="get")return send(res,200,{job:getJob(auth.userId,String(input.id))||null});
+      if(input.action==="get")return send(res,200,{job:await jobs.get(auth.userId,String(input.id))||null});
       if(input.action==="update" && ["queued","running","completed","failed"].includes(input.status)){
-        return send(res,200,{job:updateJob(auth.userId,String(input.id),input.status)});
+        return send(res,200,{job:await jobs.update(auth.userId,String(input.id),input.status)});
       }
       return send(res,400,{error:"Invalid job action"});
     }
@@ -90,4 +91,4 @@ const server=createServer(async(req,res)=>{
   }
 });
 
-server.listen(port,()=>console.log(`Nexora AI backend listening on :${port}`));
+async function start(){\n  if(pool)await initializeDatabase(pool);\n  server.listen(port,()=>console.log(`Nexora AI backend listening on :${port}`));\n}\nstart().catch(error=>{console.error("Nexora backend startup failed",error);process.exit(1);});
