@@ -9,7 +9,7 @@ async function* chunks(source:ByteSource){let pending=new Uint8Array();for await
 export async function encryptStream(source:ByteSource,sink:ByteSink,password:string,fileName:string,originalSize:number,createdAt=new Date().toISOString()){
  const salt=createSalt(),key=deriveKey(password,salt),header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:Array.from(salt,x=>x.toString(16).padStart(2,"0")).join(""),chunkSize:CHUNK_SIZE,originalName:fileName.replace(/[\\/]/g,"_"),originalSize:String(originalSize),createdAt,operationId:operationId()};
  const hb=encodeHeader(header);await sink(concat(u32(hb.length),hb));let seq=0;
- for await(const plain of chunks(source)){const r=encryptChunk(key,plain,seq,hb);await sink(concat(concat(concat(u32(seq),new Uint8Array([12])),r.nonce),concat(u32(r.ciphertext.length),r.ciphertext)));seq++}
+ let wrote=false; for await(const plain of chunks(source)){const r=encryptChunk(key,plain,seq,hb);await sink(concat(concat(concat(u32(seq),new Uint8Array([12])),r.nonce),concat(u32(r.ciphertext.length),r.ciphertext)));seq++;wrote=true} if(!wrote){const r=encryptChunk(key,new Uint8Array(),0,hb);await sink(concat(concat(concat(u32(0),new Uint8Array([12])),r.nonce),concat(u32(r.ciphertext.length),r.ciphertext)));}
  return header;
 }
 async function readExact(source:AsyncIterator<Uint8Array>,state:{buf:Uint8Array},n:number):Promise<Uint8Array>{
