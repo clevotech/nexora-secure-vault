@@ -91,7 +91,7 @@ class MainActivity : ComponentActivity() {
                 }
                 selectedUri = null
                 outputUri = null
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 selectedUri = null
                 outputUri = null
             }
