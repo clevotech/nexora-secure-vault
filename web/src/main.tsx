@@ -1,18 +1,13 @@
 import React,{useState} from "react";
 import {createRoot} from "react-dom/client";
+import {encrypt,decrypt} from "./crypto";
 import "./styles.css";
-
-function App(){
- const [file,setFile]=useState<File|null>(null);
- const [status,setStatus]=useState("Ready");
- return <main className="shell">
-  <section className="hero"><div className="brand">NEXORA</div><h1>Secure Vault</h1><p>Private, authenticated file encryption and decryption.</p></section>
-  <section className="card">
-   <label className="drop"><input type="file" onChange={e=>setFile(e.target.files?.[0]??null)}/><strong>{file?file.name:"Choose a file"}</strong><span>{file?"Ready for secure processing":"Files are processed locally where supported"}</span></label>
-   <div className="actions"><button disabled={!file} onClick={()=>setStatus("Encryption engine ready — cryptographic implementation pending")}>Encrypt</button><button className="secondary" disabled={!file} onClick={()=>setStatus("Decryption engine ready — select a Nexora container")}>Decrypt</button></div>
-   <p className="status">{status}</p>
-  </section>
-  <section className="audit"><h2>Audit history</h2><p>Encryption and decryption timestamps, operation IDs, algorithms and integrity results will appear here. Secrets are never recorded.</p></section>
- </main>
-}
+type Log={id:string;op:string;file:string;time:string;status:string};
+const key="nexora-audit-v1"; const load=():Log[]=>{try{return JSON.parse(localStorage.getItem(key)||"[]")}catch{return[]}};
+const save=(x:Log[])=>localStorage.setItem(key,JSON.stringify(x.slice(0,100)));
+const download=(bytes:Uint8Array,name:string)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([bytes as BlobPart]));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+function App(){const[file,setFile]=useState<File|null>(null),[password,setPassword]=useState(""),[status,setStatus]=useState("Ready"),[busy,setBusy]=useState(false),[logs,setLogs]=useState(load);
+const add=(op:string,name:string,status:string)=>{const l={id:crypto.randomUUID(),op,file:name,time:new Date().toISOString(),status};const n=[l,...logs];setLogs(n);save(n)};
+const run=async(op:"encrypt"|"decrypt")=>{if(!file||!password){setStatus("Select a file and enter a password.");return}setBusy(true);try{const b=new Uint8Array(await file.arrayBuffer());if(op==="encrypt"){download(await encrypt(b,file.name,password),file.name+".nsv");add(op,file.name,"Success");setStatus("Encrypted successfully.")}else{const r=await decrypt(b,password);download(r.data,r.header.originalName);add(op,r.header.originalName,"Success");setStatus("Decrypted and integrity verified.")}}catch(e){add(op,file.name,"Failed");setStatus(e instanceof Error?e.message:"Operation failed")}finally{setBusy(false)}};
+return <main className="shell"><header><div className="brand">NEXORA</div><h1>Secure Vault</h1><p>Private file encryption and authenticated decryption.</p></header><section className="card"><label className="drop"><input type="file" onChange={e=>setFile(e.target.files?.[0]??null)}/><strong>{file?file.name:"Select a file"}</strong><span>{file?"Ready for local processing":"Processing stays in your browser."}</span></label><input className="password" type="password" autoComplete="new-password" placeholder="Encryption password" value={password} onChange={e=>setPassword(e.target.value)}/><div className="actions"><button disabled={busy||!file} onClick={()=>run("encrypt")}>{busy?"Processing…":"Encrypt"}</button><button className="secondary" disabled={busy||!file} onClick={()=>run("decrypt")}>Decrypt</button></div><p className="status">{status}</p></section><section className="audit"><div className="row"><h2>Activity</h2><button className="small" onClick={()=>{setLogs([]);save([])}}>Clear</button></div>{logs.map(x=><div className="log" key={x.id}><b>{x.op}</b><span>{x.file}</span><span>{new Date(x.time).toLocaleString()}</span><span>{x.status}</span></div>)}<small>Passwords and raw encryption keys are never stored.</small></section></main>}
 createRoot(document.getElementById("root")!).render(<App/>);
