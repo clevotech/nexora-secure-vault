@@ -1,0 +1,2 @@
+import {test} from "node:test";import assert from "node:assert/strict";import {generateImage,speak,transcribe} from "../src/media.js";
+test("media functions fail closed without provider key",async()=>{delete process.env.NEXORA_OPENAI_API_KEY;await assert.rejects(()=>generateImage("test"),/not configured/);await assert.rejects(()=>speak("test"),/not configured/);await assert.rejects(()=>transcribe("aGVsbG8="),/not configured/);});
