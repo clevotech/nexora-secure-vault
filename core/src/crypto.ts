@@ -19,4 +19,4 @@ export function decryptChunk(key:Uint8Array,ciphertext:Uint8Array,nonce:Uint8Arr
 }
 export const createSalt=()=>random(16);
 export const operationId=()=>hex(random(16));
-export const sha256=async(data:Uint8Array)=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",data)));
+export const sha256=async(data:Uint8Array)=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",data.slice())));
