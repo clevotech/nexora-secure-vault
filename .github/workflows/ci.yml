@@ -1,0 +1,15 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  repository-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required security documentation
+        run: |
+          test -f SECURITY.md
+          test -f docs/ARCHITECTURE.md
+          test -f docs/FORMAT.md
+          test -f audit/SCHEMA.md
