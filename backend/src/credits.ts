@@ -21,6 +21,7 @@ export class CreditStorePostgres{
     const client=await this.pool.connect();
     try{
       await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[userId]);
       const existing=await client.query("SELECT id,user_id as \"userId\",delta::float8,reason,idempotency_key as \"idempotencyKey\",created_at as \"createdAt\" FROM nexora_credits WHERE user_id=$1 AND idempotency_key=$2 FOR UPDATE",[userId,idempotencyKey]);
       if(existing.rows[0]){await client.query("COMMIT");return existing.rows[0] as CreditEntry;}
       const b=await client.query("SELECT COALESCE(SUM(delta),0)::float8 AS balance FROM nexora_credits WHERE user_id=$1",[userId]);
