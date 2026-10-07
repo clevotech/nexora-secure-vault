@@ -1,24 +1,5 @@
 import {encryptStream,decryptStream} from "../../core/src/stream";
 const concat=(a:Uint8Array,b:Uint8Array)=>{const x=new Uint8Array(a.length+b.length);x.set(a);x.set(b,a.length);return x};
-
-async function* fileSource(file:File,signal?:AbortSignal){
-  const reader=file.stream().getReader();
-  try{
-    while(true){
-      if(signal?.aborted)throw new DOMException("Operation cancelled","AbortError");
-      const r=await reader.read();if(r.done)break;yield r.value;
-    }
-  }finally{reader.releaseLock()}
-}
-
-export async function encryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
-  const chunks:Uint8Array[]=[];let written=0;
-  const header=await encryptStream(fileSource(file,signal),async chunk=>{chunks.push(chunk);written+=chunk.length;onChunk?.(written)},password,file.name,file.size);
-  return {data:chunks.reduce(concat,new Uint8Array()),header};
-}
-
-export async function decryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
-  const chunks:Uint8Array[]=[];let written=0;
-  const header=await decryptStream(fileSource(file,signal),async chunk=>{chunks.push(chunk);written+=chunk.length;onChunk?.(written)},password);
-  return {data:chunks.reduce(concat,new Uint8Array()),header};
-}
+async function* fileSource(file:File,signal?:AbortSignal){const reader=file.stream().getReader();try{while(true){if(signal?.aborted)throw new DOMException("Operation cancelled","AbortError");const r=await reader.read();if(r.done)break;yield r.value}}finally{reader.releaseLock()}}
+export async function encryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){const chunks:Uint8Array[]=[];let written=0;const header=await encryptStream(fileSource(file,signal),async c=>{chunks.push(c);written+=c.length;onChunk?.(written)},password,file.name,file.size);return{data:chunks.reduce(concat,new Uint8Array()),header}}
+export async function decryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){const chunks:Uint8Array[]=[];let written=0;const header=await decryptStream(fileSource(file,signal),async c=>{chunks.push(c);written+=c.length;onChunk?.(written)},password);return{data:chunks.reduce(concat,new Uint8Array()),header}}
