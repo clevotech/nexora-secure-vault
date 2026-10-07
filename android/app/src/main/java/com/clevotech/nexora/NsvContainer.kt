@@ -84,7 +84,7 @@ object NsvContainer {
                     while (true) {
                         val first = src.read()
                         if (first < 0) break
-                        buf4[0] = first.toByte(); readExact(src, buf4, 1)
+                        buf4[0] = first.toByte(); val rest = ByteArray(3); readExact(src, rest); rest.copyInto(buf4, 1)
                         val seq = ByteBuffer.wrap(buf4).order(ByteOrder.LITTLE_ENDIAN).int
                         require(seq == expectedSeq) { "Invalid chunk sequence" }
                         val nonceLen = src.read(); require(nonceLen == 12) { "Invalid nonce" }
