@@ -22,7 +22,7 @@ export async function decryptStream(source:ByteSource,sink:ByteSink,password:str
  const hb=await readExact(it,state,hlen),header=decodeHeader(hb),salt=new Uint8Array(header.salt.match(/../g)!.map(x=>parseInt(x,16))),key=deriveKey(password,salt);
  let expected=0,total=0;
  while(true){
-  if(state.buf.length===0){const next=await it.next();if(next.done)break;state.buf=next.value}
+  if(state.buf.length===0){const next=await it.next();if(next.done)break;state.buf=new Uint8Array(next.value)}
   const seq=ru32(await readExact(it,state,4),0);if(seq!==expected)throw new Error("Invalid chunk sequence");
   const nl=(await readExact(it,state,1))[0];if(nl!==12)throw new Error("Invalid nonce");
   const nonce=await readExact(it,state,nl),clen=ru32(await readExact(it,state,4),0);
