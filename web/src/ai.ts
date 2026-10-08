@@ -16,4 +16,18 @@ export const saveMemory=(content:string)=>request("/memory",{action:"save",conte
 export const deleteMemory=(id:string)=>request("/memory",{action:"delete",id});
 export const voiceTranscribe=(audioBase64:string)=>request("/voice/transcribe",{audioBase64});
 export const voiceSpeak=(text:string,voice?:string)=>request("/voice/speak",{text,voice});
+export const createJob=(kind:"image"|"video"|"transcription"|"speech",metadata:Record<string,unknown>={},signal?:AbortSignal)=>request("/jobs",{action:"create",kind,metadata},signal);
+export const getJob=(id:string,signal?:AbortSignal)=>request("/jobs",{action:"get",id},signal);
+export const getAsset=(key:string,signal?:AbortSignal)=>request("/asset",{key},signal);
+export async function waitForJob(id:string,signal?:AbortSignal,timeoutMs=120000){
+ const started=Date.now();
+ while(Date.now()-started<timeoutMs){
+  const r=await getJob(id,signal);
+  const job=(r.data as {job?:{status:string;result?:unknown;error?:string}}|undefined)?.job;
+  if(job?.status==="completed")return job;
+  if(job?.status==="failed")throw new Error(job.error||"Job failed");
+  await new Promise(resolve=>setTimeout(resolve,1000));
+ }
+ throw new Error("Job timed out");
+}
 export const getIntegrations=()=>request("/integrations",{action:"list"});
