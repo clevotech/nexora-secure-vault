@@ -1,0 +1,67 @@
+services:
+  - type: web
+    name: nexora-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NEXORA_CORS_ORIGIN
+        value: https://clevotech.github.io
+      - key: NEXORA_DEV_AUTH
+        value: "false"
+      - key: NEXORA_EMBED_WORKER
+        value: "true"
+      - key: PORT
+        value: "8787"
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXORA_AUTH_ISSUER
+        sync: false
+      - key: NEXORA_AUTH_AUDIENCE
+        sync: false
+      - key: NEXORA_OPENAI_API_KEY
+        sync: false
+      - key: NEXORA_ANTHROPIC_API_KEY
+        sync: false
+      - key: NEXORA_GOOGLE_API_KEY
+        sync: false
+      - key: NEXORA_XAI_API_KEY
+        sync: false
+      - key: NEXORA_DEEPSEEK_API_KEY
+        sync: false
+      - key: NEXORA_MISTRAL_API_KEY
+        sync: false
+      - key: NEXORA_STORAGE_BUCKET
+        sync: false
+      - key: NEXORA_STORAGE_REGION
+        sync: false
+      - key: NEXORA_STORAGE_ENDPOINT
+        sync: false
+      - key: NEXORA_STORAGE_ACCESS_KEY
+        sync: false
+      - key: NEXORA_STORAGE_SECRET_KEY
+        sync: false
+      - key: NEXORA_STORAGE_PATH_STYLE
+        value: "true"
+      - key: NEXORA_IMAGE_MODEL
+        value: gpt-image-2.5-flare
+      - key: NEXORA_TRANSCRIBE_MODEL
+        value: gpt-transcribe
+      - key: NEXORA_TTS_MODEL
+        value: gpt-4o-mini-tts
+      - key: NEXORA_TTS_VOICE
+        value: marin
+      - key: NEXORA_VIDEO_API_URL
+        sync: false
+      - key: NEXORA_VIDEO_API_KEY
+        sync: false
+      - key: NEXORA_VIDEO_MODEL
+        sync: false
+      - key: NEXORA_VIDEO_POLL_MS
+        value: "3000"
+      - key: NEXORA_VIDEO_TIMEOUT_MS
+        value: "1800000"
