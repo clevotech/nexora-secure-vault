@@ -1,5 +1,5 @@
 export type ChatMessage={id:string;role:"user"|"assistant";content:string;createdAt:string};
-export type AIResponse={content?:string;message?:string;error?:string;imageUrl?:string;images?:string[];data?:unknown};
+export type AIResponse={content?:string;message?:string;error?:string;job?:unknown;imageUrl?:string;images?:string[];data?:unknown};
 const base=import.meta.env.VITE_NEXORA_AI_ENDPOINT||"/api/ai";
 async function request(path:string,payload:unknown,signal?:AbortSignal):Promise<AIResponse>{
  const r=await fetch(base.replace(/\/$/,"")+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal});
@@ -23,7 +23,7 @@ export async function waitForJob(id:string,signal?:AbortSignal,timeoutMs=120000)
  const started=Date.now();
  while(Date.now()-started<timeoutMs){
   const r=await getJob(id,signal);
-  const job=(r.data as {job?:{status:string;result?:unknown;error?:string}}|undefined)?.job;
+  const job=(r.job as {status:string;result?:unknown;error?:string}|undefined);
   if(job?.status==="completed")return job;
   if(job?.status==="failed")throw new Error(job.error||"Job failed");
   await new Promise(resolve=>setTimeout(resolve,1000));
