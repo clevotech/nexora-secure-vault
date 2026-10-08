@@ -1,4 +1,5 @@
 import {createServer} from "node:http";
+import {spawn,type ChildProcess} from "node:child_process";
 import {routeChat,validateChat} from "./router.js";
 import {authenticate} from "./auth.js";
 import {createDatabasePool,initializeDatabase} from "./db.js";
@@ -109,8 +110,21 @@ const server=createServer(async(req,res)=>{
   }
 });
 
+let embeddedWorker:ChildProcess|undefined;
+
 async function start(){
   if(pool)await initializeDatabase(pool);
+  if(process.env.NEXORA_EMBED_WORKER==="true"){
+    embeddedWorker=spawn(process.execPath,["--import","tsx","src/worker.ts"],{cwd:process.cwd(),stdio:"inherit"});
+    embeddedWorker.on("exit",(code,signal)=>console.error(`Nexora embedded worker exited code=${code??"null"} signal=${signal??"none"}`));
+  }
   server.listen(port,()=>console.log(`Nexora AI backend listening on :${port}`));
 }
+function shutdown(signal:string){
+  console.log(`Nexora backend received ${signal}`);
+  embeddedWorker?.kill("SIGTERM");
+  server.close(()=>{void pool?.end().finally(()=>process.exit(0));});
+}
+process.on("SIGINT",()=>shutdown("SIGINT"));
+process.on("SIGTERM",()=>shutdown("SIGTERM"));
 start().catch(error=>{console.error("Nexora backend startup failed",error);process.exit(1);});
