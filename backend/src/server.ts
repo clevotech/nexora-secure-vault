@@ -47,7 +47,10 @@ const server=createServer(async(req,res)=>{
       const input=await body(req);
       if(input.action==="balance")return send(res,200,{balance:await credits.balance(auth.userId)});
       if(input.action==="apply"){
-        return send(res,200,{entry:await credits.apply(auth.userId,Number(input.delta),String(input.reason||"adjustment"),String(input.idempotencyKey||""))});
+        if(!auth.scopes.has("billing")&&!auth.scopes.has("admin"))return send(res,403,{error:"Billing authorization required"});
+        const targetUserId=String(input.userId||auth.userId);
+        if(targetUserId!==auth.userId&&!auth.scopes.has("admin"))return send(res,403,{error:"Admin authorization required"});
+        return send(res,200,{entry:await credits.apply(targetUserId,Number(input.delta),String(input.reason||"adjustment"),String(input.idempotencyKey||""))});
       }
       return send(res,400,{error:"Invalid credit action"});
     }
