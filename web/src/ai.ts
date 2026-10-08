@@ -1,8 +1,13 @@
+import {getAccessToken} from "./auth";
+
 export type ChatMessage={id:string;role:"user"|"assistant";content:string;createdAt:string};
 export type AIResponse={content?:string;message?:string;error?:string;job?:unknown;url?:string;imageUrl?:string;images?:string[];data?:unknown};
 const base=import.meta.env.VITE_NEXORA_AI_ENDPOINT||"/api/ai";
 async function request(path:string,payload:unknown,signal?:AbortSignal):Promise<AIResponse>{
- const r=await fetch(base.replace(/\/$/,"")+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal});
+ const token=await getAccessToken();
+ const headers:Record<string,string>={"Content-Type":"application/json"};
+ if(token)headers["Authorization"]=["Bearer",token].join(" ");
+ const r=await fetch(base.replace(/\/$/,"")+path,{method:"POST",headers,body:JSON.stringify(payload),signal});
  const data=await r.json().catch(()=>({}));
  if(!r.ok)throw new Error(data.error||data.message||`AI request failed (${r.status})`);
  return data;
