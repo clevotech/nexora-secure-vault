@@ -1,4 +1,6 @@
 import {createDatabasePool} from "./db.js";
+import {generateImage} from "./media.js";
+import {createObjectStorage} from "./object-storage.js";
 import {JobStorePostgres,type MediaJob} from "./jobs.js";
 
 const workerId=process.env.NEXORA_WORKER_ID||`worker-${process.pid}`;
@@ -8,10 +10,15 @@ const pool=createDatabasePool();
 if(!pool)throw new Error("DATABASE_URL is required for the production worker");
 
 const jobs=new JobStorePostgres(pool);
+const storage=createObjectStorage();
+if(!storage)throw new Error("NEXORA_STORAGE_BUCKET is required for the production worker");
 
 async function processJob(job:MediaJob){
-  if(job.kind==="video")throw new Error("No active video provider is configured");
-  throw new Error(`No worker adapter is configured for ${job.kind}`);
+  if(job.kind!=="image")throw new Error(`No active worker adapter is configured for ${job.kind}`);
+  const output=await generateImage(String(job.metadata.prompt||""),typeof job.metadata.model==="string"?job.metadata.model:undefined);
+  const key=`${job.userId}/jobs/${job.id}.png`;
+  await storage.put(key,Buffer.from(output.imageBase64,"base64"),"image/png");
+  return {type:"image",key,model:output.model};
 }
 
 async function tick(){
