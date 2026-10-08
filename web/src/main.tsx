@@ -1,4 +1,5 @@
-import React,{useRef,useState} from "react";
+import React,{useEffect,useRef,useState} from "react";
+import {authConfigured,ensureAnonymousSession} from "./auth";
 import {invoke} from "@tauri-apps/api/core";
 import {open,save} from "@tauri-apps/plugin-dialog";
 import {createRoot} from "react-dom/client";
@@ -11,6 +12,7 @@ const download=(bytes:Uint8Array,name:string)=>{const a=document.createElement("
 type Tab="vault"|"chat"|"create"|"images"|"tools"|"activity"|"more";
 const tabs:{id:Tab;label:string;icon:string}[]=[{id:"vault",label:"Vault",icon:"⌂"},{id:"chat",label:"AI Chat",icon:"✦"},{id:"create",label:"Create",icon:"◈"},{id:"images",label:"Images",icon:"▧"},{id:"tools",label:"AI Tools",icon:"⚡"},{id:"activity",label:"Activity",icon:"◷"},{id:"more",label:"More",icon:"☷"}];
 function App(){
+ useEffect(()=>{if(!authConfigured())return;ensureAnonymousSession().catch(()=>{});},[]);
  const[file,setFile]=useState<File|null>(null),[password,setPassword]=useState(""),[status,setStatus]=useState("Ready when you are."),[progress,setProgress]=useState(0),[busy,setBusy]=useState(false),[logs,setLogs]=useState(load),[tab,setTab]=useState<Tab>("vault");
  const[chat,setChat]=useState<ChatMessage[]>([]),[chatInput,setChatInput]=useState(""),[model,setModel]=useState("auto"),[aiBusy,setAiBusy]=useState(false),[imagePrompt,setImagePrompt]=useState(""),[imageResult,setImageResult]=useState<string[]>([]),[videoPrompt,setVideoPrompt]=useState(""),[videoLength,setVideoLength]=useState("30–60 sec"),[tool,setTool]=useState("summarize"),[toolInput,setToolInput]=useState(""),[toolResult,setToolResult]=useState(""),[memory,setMemory]=useState(""),[memoryStatus,setMemoryStatus]=useState(""),[voiceBusy,setVoiceBusy]=useState(false),[speaking,setSpeaking]=useState(false);
  const cancel=useRef<AbortController|null>(null);
