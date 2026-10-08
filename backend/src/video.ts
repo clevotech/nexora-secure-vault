@@ -1,7 +1,7 @@
 export type VideoRequest={prompt:string;model?:string;duration?:string;continuity?:boolean;characterConsistency?:boolean;voiceReference?:boolean};
 export type VideoResult={videoBase64:string;model?:string;contentType:string};
 
-const base=()=>process.env.NEXORA_VIDEO_API_URL?.replace(/\\/$/,"");
+const base=()=>process.env.NEXORA_VIDEO_API_URL?.replace(/\/$/,"");
 const apiKey=()=>process.env.NEXORA_VIDEO_API_KEY||"";
 const parse=async(r:Response)=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||`Video provider failed (${r.status})`);return d;};
 
