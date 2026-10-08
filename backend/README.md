@@ -20,10 +20,10 @@ This backend is the server-side execution boundary for Nexora's multi-provider A
 
 - POST /chat — provider-backed routing when a provider is configured.
 - POST /image — live OpenAI GPT Image adapter when configured.
-- POST /video — intentionally provider-neutral scaffold; long-form generation needs an active video provider/worker.
+- POST /video — durable video job endpoint; the worker supports the configured asynchronous video adapter. The adapter must target a currently supported provider; long-form requests require scene/chaining orchestration rather than pretending a provider supports 30–60 minute single generations.
 - POST /tools — scaffold.
 - POST /memory — authenticated memory API; PostgreSQL when configured.
-- POST /credits — authenticated idempotent credit ledger.
+- POST /credits — authenticated idempotent credit ledger; balance is user-readable, while credit mutations require `billing` or `admin` scope.
 - POST /voice/transcribe — live OpenAI transcription adapter when configured.
 - POST /voice/speak — live OpenAI speech adapter when configured.
 - POST /jobs — authenticated job creation/read API backed by the durable queue when PostgreSQL is configured.
@@ -54,6 +54,25 @@ Persistence:
 - NEXORA_DB_POOL_MAX — maximum application pool size; defaults to 10.
 
 Set VITE_NEXORA_AI_ENDPOINT in the web deployment to the backend HTTPS origin.
+
+## External-service connection map
+
+Nexora is designed to connect these services without putting credentials in the browser:
+
+| Service | Purpose | Required production secret/config |
+|---|---|---|
+| OpenAI | Chat, image, transcription, speech | `NEXORA_OPENAI_API_KEY` |
+| Anthropic | Claude chat/reasoning | `NEXORA_ANTHROPIC_API_KEY` |
+| Google Gemini | Gemini models and future Veo adapter | `NEXORA_GOOGLE_API_KEY` |
+| xAI | Grok | `NEXORA_XAI_API_KEY` |
+| DeepSeek | DeepSeek | `NEXORA_DEEPSEEK_API_KEY` |
+| Mistral | Mistral | `NEXORA_MISTRAL_API_KEY` |
+| PostgreSQL | durable users/memory/credits/jobs | `DATABASE_URL` |
+| S3-compatible storage | private generated assets | `NEXORA_STORAGE_*` |
+| OIDC provider | production authentication | `NEXORA_AUTH_ISSUER`, `NEXORA_AUTH_AUDIENCE` |
+| Video provider | asynchronous video generation | `NEXORA_VIDEO_API_URL`, `NEXORA_VIDEO_API_KEY`, `NEXORA_VIDEO_MODEL` |
+
+Never paste these secrets into source files, GitHub issues, browser code, or the public repository. OpenAI likewise explicitly requires API credentials to remain server-side rather than in client-side code. citeturn0search0
 
 ## Production requirements still outstanding
 
