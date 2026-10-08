@@ -4,11 +4,13 @@ import {authenticate} from "./auth.js";
 import {createDatabasePool,initializeDatabase} from "./db.js";
 import {createPersistence} from "./persistence.js";
 import {generateImage,transcribe,speak} from "./media.js";
+import {createObjectStorage} from "./object-storage.js";
 
 const port=Number(process.env.PORT||8787);
 const pool=createDatabasePool();
 const persistence=createPersistence(pool);
 const {memory,credits,jobs}=persistence;
+const objectStorage=createObjectStorage();
 
 function send(res:import("node:http").ServerResponse,status:number,data:unknown){
   res.statusCode=status;res.setHeader("Content-Type","application/json; charset=utf-8");res.end(JSON.stringify(data));
@@ -72,7 +74,7 @@ const server=createServer(async(req,res)=>{
       const input=await body(req,100_000);
       return send(res,200,await speak(String(input.text||""),typeof input.voice==="string"?input.voice:undefined));
     }
-    if(req.url==="/jobs"){
+    if(req.url==="/asset"){\n      if(!objectStorage)throw new Error("Object storage is not configured");\n      const input=await body(req);\n      const key=String(input.key||"");\n      if(!key||!key.startsWith(`${auth.userId}/`))throw new Error("Invalid asset key");\n      return send(res,200,{url:await objectStorage.signedGet(key)});\n    }\n    if(req.url==="/jobs"){
       const input=await body(req);
       if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind)){
         return send(res,202,{job:await jobs.create(auth.userId,input.kind,input.metadata||{})});
