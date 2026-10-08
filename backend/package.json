@@ -1,9 +1,25 @@
 {
-  "name":"nexora-ai-backend",
-  "private":true,
-  "version":"0.1.0",
-  "type":"module",
-  "scripts":{"typecheck":"tsc --noEmit","test":"node --import tsx --test tests/**/*.test.ts","dev":"tsx src/server.ts","worker":"tsx src/worker.ts","start":"node --import tsx src/server.ts"},
-  "dependencies":{"jose":"^6.1.0","pg":"^8.16.3"},
-  "devDependencies":{"tsx":"^4.20.6","typescript":"^5.9.0","@types/node":"^24.10.0","@types/pg":"^8.15.5"}
+  "name": "nexora-ai-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "dev": "tsx src/server.ts",
+    "worker": "tsx src/worker.ts",
+    "start": "node --import tsx src/server.ts"
+  },
+  "dependencies": {
+    "jose": "^6.1.0",
+    "pg": "^8.16.3",
+    "@aws-sdk/client-s3": "^3.911.0",
+    "@aws-sdk/s3-request-presigner": "^3.911.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.0",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.5"
+  }
 }
