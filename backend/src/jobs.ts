@@ -14,7 +14,19 @@ export class JobStorePostgres{
   async create(userId:string,kind:MediaJob["kind"],metadata:Record<string,unknown>={}){const r=await this.pool.query("INSERT INTO nexora_jobs(id,user_id,kind,status,metadata) VALUES($1,$2,$3,'queued',$4) RETURNING id,user_id as \"userId\",kind,status,metadata,created_at as \"createdAt\",updated_at as \"updatedAt\"",[crypto.randomUUID(),userId,kind,metadata]);return r.rows[0] as MediaJob;}
   async get(userId:string,id:string){const r=await this.pool.query("SELECT id,user_id as \"userId\",kind,status,metadata,result,error,created_at as \"createdAt\",updated_at as \"updatedAt\" FROM nexora_jobs WHERE id=$1 AND user_id=$2",[id,userId]);return r.rows[0] as MediaJob|undefined;}
   async update(userId:string,id:string,status:JobStatus,result?:unknown,error?:string){const r=await this.pool.query("UPDATE nexora_jobs SET status=$3,result=COALESCE($4,result),error=COALESCE($5,error),updated_at=NOW() WHERE id=$1 AND user_id=$2 RETURNING id,user_id as \"userId\",kind,status,metadata,result,error,created_at as \"createdAt\",updated_at as \"updatedAt\"",[id,userId,status,result??null,error??null]);if(!r.rows[0])throw new Error("Job not found");return r.rows[0] as MediaJob;}
+  async claimNext(workerId:string){
+    const client=await this.pool.connect();
+    try{
+      await client.query("BEGIN");
+      const r=await client.query("SELECT id,user_id as \"userId\",kind,status,metadata,result,error,created_at as \"createdAt\",updated_at as \"updatedAt\" FROM nexora_jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1");
+      if(!r.rows[0]){await client.query("COMMIT");return undefined;}
+      const job=r.rows[0] as MediaJob;
+      const updated=await client.query("UPDATE nexora_jobs SET status='running',metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{workerId}',to_jsonb($2::text)),updated_at=NOW() WHERE id=$1 RETURNING id,user_id as \"userId\",kind,status,metadata,result,error,created_at as \"createdAt\",updated_at as \"updatedAt\"",[job.id,workerId]);
+      await client.query("COMMIT");return updated.rows[0] as MediaJob;
+    }catch(e){await client.query("ROLLBACK");throw e}finally{client.release();}
+  }
 }
+
 const defaultJobStore=new JobStoreMemory();
 export function createJob(userId:string,kind:MediaJob["kind"],metadata:Record<string,unknown>={}){return defaultJobStore.create(userId,kind,metadata);}
 export function getJob(userId:string,id:string){return defaultJobStore.get(userId,id);}
