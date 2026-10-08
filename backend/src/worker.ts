@@ -1,5 +1,6 @@
 import {createDatabasePool} from "./db.js";
 import {generateImage,speak} from "./media.js";
+import {generateVideo} from "./video.js";
 import {createObjectStorage} from "./object-storage.js";
 import {JobStorePostgres,type MediaJob} from "./jobs.js";
 
@@ -19,6 +20,13 @@ async function processJob(job:MediaJob){
     const key=`${job.userId}/jobs/${job.id}.mp3`;
     await storage.put(key,Buffer.from(output.audioBase64,"base64"),"audio/mpeg");
     return {type:"audio",key,model:output.model,format:output.format};
+  }
+  if(job.kind==="video"){
+    const output=await generateVideo({prompt:String(job.metadata.prompt||""),model:typeof job.metadata.model==="string"?job.metadata.model:undefined,duration:typeof job.metadata.duration==="string"?job.metadata.duration:undefined,continuity:job.metadata.continuity===true,characterConsistency:job.metadata.characterConsistency===true,voiceReference:job.metadata.voiceReference===true});
+    const extension=output.contentType.includes("webm")?"webm":"mp4";
+    const key=`${job.userId}/jobs/${job.id}.${extension}`;
+    await storage.put(key,Buffer.from(output.videoBase64,"base64"),output.contentType);
+    return {type:"video",key,model:output.model,format:output.contentType};
   }
   if(job.kind!=="image")throw new Error(`No active worker adapter is configured for ${job.kind}`);
   const output=await generateImage(String(job.metadata.prompt||""),typeof job.metadata.model==="string"?job.metadata.model:undefined);
