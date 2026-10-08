@@ -82,7 +82,13 @@ const server=createServer(async(req,res)=>{
       if(input.action==="get")return send(res,200,{job:await jobs.get(auth.userId,String(input.id))||null});
       return send(res,400,{error:"Invalid job action"});
     }
-    if(["/video","/tools","/integrations"].includes(req.url||"")){
+    if(req.url==="/video"){
+      const input=await body(req,2_000_000);
+      const prompt=String(input.prompt||"");
+      if(!prompt||prompt.length>32000)throw new Error("Invalid video prompt");
+      return send(res,202,{job:await jobs.create(auth.userId,"video",{prompt,model:typeof input.model==="string"?input.model:undefined,duration:typeof input.duration==="string"?input.duration:undefined,continuity:input.continuity===true,characterConsistency:input.characterConsistency===true,voiceReference:input.voiceReference===true})});
+    }
+    if(["/tools","/integrations"].includes(req.url||"")){
       return send(res,501,{error:"Route scaffolded; connect the corresponding service adapter before production use."});
     }
     return send(res,404,{error:"Not found"});
