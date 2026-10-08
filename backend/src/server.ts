@@ -74,7 +74,7 @@ const server=createServer(async(req,res)=>{
       const input=await body(req,100_000);
       return send(res,200,await speak(String(input.text||""),typeof input.voice==="string"?input.voice:undefined));
     }
-    if(req.url==="/asset"){\n      if(!objectStorage)throw new Error("Object storage is not configured");\n      const input=await body(req);\n      const key=String(input.key||"");\n      if(!key||!key.startsWith(`${auth.userId}/`))throw new Error("Invalid asset key");\n      return send(res,200,{url:await objectStorage.signedGet(key)});\n    }\n    if(req.url==="/jobs"){
+    if(req.url==="/asset"){\n      if(!objectStorage)throw new Error("Object storage is not configured");\n      const input=await body(req);\n      const key=String(input.key||"");\n      if(!key||key.length>500||key.includes("..")||!key.startsWith(`${auth.userId}/`))throw new Error("Invalid asset key");\n      return send(res,200,{url:await objectStorage.signedGet(key)});\n    }\n    if(req.url==="/jobs"){
       const input=await body(req);
       if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind)){
         return send(res,202,{job:await jobs.create(auth.userId,input.kind,input.metadata||{})});
