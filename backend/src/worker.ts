@@ -6,13 +6,14 @@ import {JobStorePostgres,type MediaJob} from "./jobs.js";
 
 const workerId=process.env.NEXORA_WORKER_ID||`worker-${process.pid}`;
 const pollMs=Math.max(250,Number(process.env.NEXORA_WORKER_POLL_MS||1000));
-const pool=createDatabasePool();
-
-if(!pool)throw new Error("DATABASE_URL is required for the production worker");
+const poolResult=createDatabasePool();
+if(!poolResult)throw new Error("DATABASE_URL is required for the production worker");
+const pool=poolResult;
 
 const jobs=new JobStorePostgres(pool);
-const storage=createObjectStorage();
-if(!storage)throw new Error("NEXORA_STORAGE_BUCKET is required for the production worker");
+const storageResult=createObjectStorage();
+if(!storageResult)throw new Error("NEXORA_STORAGE_BUCKET is required for the production worker");
+const storage=storageResult;
 
 async function processJob(job:MediaJob){
   if(job.kind==="speech"){
