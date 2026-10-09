@@ -28,15 +28,17 @@ export function createDatabasePool(){
   const rawUrl=process.env.DATABASE_URL;
   if(!rawUrl)return null;
 
-  // Normalize the URL and set TLS in pg's connection options. pg-connection-string
-  // can override an explicit SSL object when SSL query parameters are present.
+  // Keep TLS certificate verification enabled. If Supabase uses a private/custom
+  // database CA chain, supply its official root certificate through SUPABASE_DB_CA.
+  // Render environment variables may store PEM newlines as literal \\n.
   const parsedUrl=new URL(rawUrl);
   for(const key of ["sslmode","ssl","sslcert","sslkey","sslrootcert","sslfactory"]){
     parsedUrl.searchParams.delete(key);
   }
+  const ca=process.env.SUPABASE_DB_CA?.replace(/\\n/g,"\n").trim();
   const pool=new Pool({
     connectionString:parsedUrl.toString(),
-    ssl:{rejectUnauthorized:true},
+    ssl:{rejectUnauthorized:true,...(ca?{ca}: {})},
     max:Number(process.env.NEXORA_DB_POOL_MAX||10),
     idleTimeoutMillis:30000,
     connectionTimeoutMillis:5000
