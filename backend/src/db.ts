@@ -25,7 +25,21 @@ export async function initializeDatabase(pool:Pool){
 }
 
 export function createDatabasePool(){
-  const url=process.env.DATABASE_URL;if(!url)return null;
-  const pool=new Pool({connectionString:url,max:Number(process.env.NEXORA_DB_POOL_MAX||10),idleTimeoutMillis:30000,connectionTimeoutMillis:5000});
+  const rawUrl=process.env.DATABASE_URL;
+  if(!rawUrl)return null;
+
+  // Normalize the URL and set TLS in pg's connection options. pg-connection-string
+  // can override an explicit SSL object when SSL query parameters are present.
+  const parsedUrl=new URL(rawUrl);
+  for(const key of ["sslmode","ssl","sslcert","sslkey","sslrootcert","sslfactory"]){
+    parsedUrl.searchParams.delete(key);
+  }
+  const pool=new Pool({
+    connectionString:parsedUrl.toString(),
+    ssl:{rejectUnauthorized:true},
+    max:Number(process.env.NEXORA_DB_POOL_MAX||10),
+    idleTimeoutMillis:30000,
+    connectionTimeoutMillis:5000
+  });
   pool.on("error",error=>console.error("Nexora PostgreSQL pool error",error));return pool;
 }
