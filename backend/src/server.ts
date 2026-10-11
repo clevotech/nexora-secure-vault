@@ -49,9 +49,11 @@ const server=createServer(async(req,res)=>{
     return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:Boolean(pool)&&process.env.NEXORA_EMBED_WORKER!=="false"});
   }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
+  let authenticatedUserId:string|undefined;
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
     const auth=await authenticate(authHeaders);
+    authenticatedUserId=auth.userId;
     const auditPath=new URL(req.url||"/","http://localhost").pathname;
     const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
     res.once("finish",()=>{
@@ -189,6 +191,10 @@ const server=createServer(async(req,res)=>{
   }catch(error){
     const message=error instanceof Error?error.message:"Request failed";
     const status=/Authentication required|Invalid development authentication token|Production authentication verifier|Authentication failed|Authenticated token/.test(message)?401:message==="Request too large"?413:400;
+    if(pool&&!authenticatedUserId){
+      const path=new URL(req.url||"/","http://localhost").pathname;
+      void appendAuditEvent(pool,{actorUserId:"anonymous",action:"api.request.unauthenticated",resourceType:"api_route",resourceId:path,outcome:status===401||status===403?"denied":"failure",details:{method:req.method||"GET",statusCode:status}}).catch(error=>console.error("Nexora audit write failed",error instanceof Error?error.message:"unknown error"));
+    }
     return send(res,status,{error:message});
   }
 });
