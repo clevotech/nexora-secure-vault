@@ -17,18 +17,22 @@ function pcmToWav(pcm:Buffer,sampleRate=24000,channels=1){
   const header=Buffer.alloc(44);header.write("RIFF",0);header.writeUInt32LE(36+pcm.length,4);header.write("WAVE",8);header.write("fmt ",12);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(channels,22);header.writeUInt32LE(sampleRate,24);header.writeUInt32LE(sampleRate*channels*2,28);header.writeUInt16LE(channels*2,32);header.writeUInt16LE(16,34);header.write("data",36);header.writeUInt32LE(pcm.length,40);return Buffer.concat([header,pcm]);
 }
 
-export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare"){
+export type ImageReference={name?:string;dataUrl:string};
+export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare",referenceImages:ImageReference[]=[]){
   if(!prompt||prompt.length>32000)throw new Error("Invalid image prompt");
+  if(referenceImages.length>2||referenceImages.some(x=>typeof x.dataUrl!=="string"||!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(x.dataUrl)))throw new Error("Provide up to 2 valid PNG, JPEG, or WebP reference images.");
   const googleKey=process.env.NEXORA_GOOGLE_API_KEY;
   if(googleKey){
     const selected=model.startsWith("gemini-")?model:"gemini-3.1-flash-image";
-    const d=await googleGenerate(selected,[{role:"user",parts:[{text:prompt}]}],{responseModalities:["TEXT","IMAGE"]});
+    const parts:unknown[]=[{text:prompt},...referenceImages.map(ref=>{const match=ref.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/);if(!match)throw new Error("Unsupported reference image format");return {inlineData:{mimeType:match[1]==="image/jpg"?"image/jpeg":match[1],data:match[2]}}})];
+    const d=await googleGenerate(selected,[{role:"user",parts}],{responseModalities:["TEXT","IMAGE"]});
     const parts=d?.candidates?.[0]?.content?.parts||[];
     const item=parts.find((p:{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}})=>Boolean(p.inlineData?.data||p.inline_data?.data));
     const imageData=item?.inlineData?.data||item?.inline_data?.data;
     if(imageData)return {model:selected,imageBase64:imageData,mimeType:item?.inlineData?.mimeType||item?.inline_data?.mime_type||"image/png",provider:"google"};
     throw new Error("Gemini returned no image. Check API access and image-generation quota for gemini-2.5-flash-image.");
   }
+  if(referenceImages.length)throw new Error("Image reference inputs are not enabled for the current OpenAI image adapter. Configure the Google image provider or use text-only generation.");
   const r=await fetch(`${OPENAI}/images/generations`,{method:"POST",headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt})});
   const d=await parse(r);const item=d?.data?.[0];if(!item?.b64_json)throw new Error("Image provider returned no image data");return {model,imageBase64:item.b64_json,provider:"openai"};
 }
