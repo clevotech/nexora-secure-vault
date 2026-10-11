@@ -44,7 +44,7 @@ const server=createServer(async(req,res)=>{
     const videoConfigured=Boolean(process.env.NEXORA_VIDEO_API_URL||process.env.NEXORA_GOOGLE_API_KEY);
     const storageConfigured=Boolean(objectStorage);
     const ready=database==="connected"&&authConfigured&&chatProviderConfigured&&mediaConfigured&&storageConfigured&&videoConfigured;
-    return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:process.env.NEXORA_EMBED_WORKER==="true"});
+    return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:Boolean(pool)&&process.env.NEXORA_EMBED_WORKER!=="false"});
   }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
   try{
@@ -143,7 +143,7 @@ let embeddedWorker:ChildProcess|undefined;
 
 async function start(){
   if(pool)await initializeDatabase(pool);
-  if(process.env.NEXORA_EMBED_WORKER==="true"){
+  if(pool&&process.env.NEXORA_EMBED_WORKER!=="false"){
     embeddedWorker=spawn(process.execPath,["--import","tsx","src/worker.ts"],{cwd:process.cwd(),stdio:"inherit"});
     embeddedWorker.on("exit",(code,signal)=>console.error(`Nexora embedded worker exited code=${code??"null"} signal=${signal??"none"}`));
   }
