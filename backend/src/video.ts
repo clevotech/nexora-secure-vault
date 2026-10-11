@@ -36,7 +36,7 @@ async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
   const references=input.characterReferenceImages||[];
   if(references.length>3)throw new Error("Google Veo supports up to 3 character/reference images.");
   const parsedReferences=references.map(ref=>{
-    const match=typeof ref.dataUrl==="string"?ref.dataUrl.match(/^data:(image\\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/):null;
+    const match=typeof ref.dataUrl==="string"?ref.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/):null;
     if(!match)throw new Error("Each character reference must be a valid PNG, JPEG, or WebP image.");
     return {image:{inlineData:{mimeType:match[1]==="image/jpg"?"image/jpeg":match[1],data:match[2]}},referenceType:"asset"};
   });
