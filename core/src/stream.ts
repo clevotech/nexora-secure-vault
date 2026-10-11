@@ -6,11 +6,16 @@ const u32=(n:number)=>{const x=new Uint8Array(4);new DataView(x.buffer).setUint3
 const ru32=(b:Uint8Array,o:number)=>new DataView(b.buffer,b.byteOffset+o,4).getUint32(0,true);
 const concat=(a:Uint8Array,b:Uint8Array)=>{const x=new Uint8Array(a.length+b.length);x.set(a);x.set(b,a.length);return x};
 async function* chunks(source:ByteSource){let pending=new Uint8Array();for await(const part of source){pending=concat(pending,part);while(pending.length>=CHUNK_SIZE){yield pending.subarray(0,CHUNK_SIZE);pending=pending.slice(CHUNK_SIZE)}}if(pending.length)yield pending}
+export function restoreHeaderName(header:NsvHeader,password:string):NsvHeader{
+ const salt=new Uint8Array(header.salt.match(/../g)!.map(x=>parseInt(x,16))),key=deriveKey(password,salt);
+ if(header.nameNonce&&header.nameCiphertext){const originalName=decryptMetadata(key,header.nameNonce,header.nameCiphertext);if(!originalName||originalName.length>1024)throw new Error("Invalid encrypted filename");return {...header,originalName};}
+ return header;
+}
 export async function encryptStream(source:ByteSource,sink:ByteSink,password:string,fileName:string,originalSize:number,createdAt=new Date().toISOString()){
- const salt=createSalt(),key=deriveKey(password,salt),header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:Array.from(salt,x=>x.toString(16).padStart(2,"0")).join(""),chunkSize:CHUNK_SIZE,originalName:fileName.replace(/[\\/]/g,"_"),originalSize:String(originalSize),createdAt,operationId:operationId()};
+ const salt=createSalt(),key=deriveKey(password,salt),nameFields=encryptMetadata(key,fileName.replace(/[\\/]/g,"_")),header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:Array.from(salt,x=>x.toString(16).padStart(2,"0")).join(""),chunkSize:CHUNK_SIZE,originalName:"Encrypted file",originalSize:String(originalSize),createdAt,operationId:operationId(),...nameFields};
  const hb=encodeHeader(header);await sink(concat(u32(hb.length),hb));let seq=0;
  let wrote=false; for await(const plain of chunks(source)){const r=encryptChunk(key,plain,seq,hb);await sink(concat(concat(concat(u32(seq),new Uint8Array([12])),r.nonce),concat(u32(r.ciphertext.length),r.ciphertext)));seq++;wrote=true} if(!wrote){const r=encryptChunk(key,new Uint8Array(),0,hb);await sink(concat(concat(concat(u32(0),new Uint8Array([12])),r.nonce),concat(u32(r.ciphertext.length),r.ciphertext)));}
- return header;
+ return restoreHeaderName(header,password);
 }
 async function readExact(source:AsyncIterator<Uint8Array>,state:{buf:Uint8Array},n:number):Promise<Uint8Array>{
  while(state.buf.length<n){const next=await source.next();if(next.done)throw new Error("Unexpected end of container");state.buf=concat(state.buf,next.value)}
@@ -32,5 +37,6 @@ export async function decryptStream(source:ByteSource,sink:ByteSink,password:str
   await sink(plain);expected++;
  }
  if(state.buf.length!==0||total!==Number(header.originalSize))throw new Error("Integrity/size verification failed");
- return header;
+ const originalName=header.nameNonce&&header.nameCiphertext?decryptMetadata(key,header.nameNonce,header.nameCiphertext):header.originalName;
+ return {...header,originalName};
 }
