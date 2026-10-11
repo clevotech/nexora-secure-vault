@@ -7,6 +7,7 @@ import {createPersistence} from "./persistence.js";
 import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
 import {handleLeaveApi} from "./leave-api.js";
+import {appendAuditEvent} from "./leave.js";
 
 const port=Number(process.env.PORT||8787);
 const pool=await createDatabasePool();
@@ -51,6 +52,14 @@ const server=createServer(async(req,res)=>{
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
     const auth=await authenticate(authHeaders);
+    const auditPath=new URL(req.url||"/","http://localhost").pathname;
+    const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
+    res.once("finish",()=>{
+      if(!pool)return;
+      const status=res.statusCode;
+      const outcome: "success"|"failure"|"denied"=status>=500?"failure":status===401||status===403?"denied":status>=400?"failure":"success";
+      void appendAuditEvent(pool,{actorUserId:auth.userId,action:"api.request."+String(req.method||"GET").toLowerCase()+"."+auditPath.replace(/[^a-zA-Z0-9/_-]/g,"").slice(0,160),resourceType:"api_route",resourceId:auditPath,outcome,correlationId,details:{method:req.method||"GET",statusCode:status}}).catch(error=>console.error("Nexora audit write failed",error instanceof Error?error.message:"unknown error"));
+    });
     if(req.url==="/leave"){
       const input=await body(req,2_000_000);
       const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
