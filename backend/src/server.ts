@@ -35,7 +35,16 @@ const server=createServer(async(req,res)=>{
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
   if(req.method==="OPTIONS"){res.statusCode=204;return res.end();}
-  if(req.url==="/health" && req.method==="GET"){return send(res,200,{ok:true,service:"nexora-ai-backend",storage:process.env.DATABASE_URL?"postgres":"memory"});}
+  if(req.url==="/health" && req.method==="GET"){
+    let database:"connected"|"unconfigured"|"unreachable"=pool?"connected":"unconfigured";
+    if(pool){try{await pool.query("SELECT 1");}catch{database="unreachable";}}
+    const authConfigured=Boolean(process.env.NEXORA_AUTH_ISSUER&&process.env.NEXORA_AUTH_AUDIENCE)&&process.env.NEXORA_DEV_AUTH!=="true";
+    const mediaConfigured=Boolean(process.env.NEXORA_OPENAI_API_KEY);
+    const videoConfigured=Boolean(process.env.NEXORA_VIDEO_API_URL);
+    const storageConfigured=Boolean(objectStorage);
+    const ready=database==="connected"&&authConfigured&&mediaConfigured&&storageConfigured&&videoConfigured;
+    return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:process.env.NEXORA_EMBED_WORKER==="true"});
+  }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
