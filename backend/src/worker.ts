@@ -40,7 +40,7 @@ async function processJob(job:MediaJob){
       lyrics:typeof job.metadata.lyrics==="string"?job.metadata.lyrics:undefined,
       instrumental:job.metadata.instrumental===true,beatOnly:job.metadata.beatOnly===true,
       voiceReferenceAudio:typeof job.metadata.voiceReferenceAudio==="string"?job.metadata.voiceReferenceAudio:undefined,
-      voiceName:typeof job.metadata.voiceName==="string"?job.metadata.voiceName:undefined,
+      voiceName:typeof job.metadata.voiceName==="string"?job.metadata.voiceName:undefined,leadVocalist:job.metadata.leadVocalist&&typeof job.metadata.leadVocalist==="object"?{name:typeof (job.metadata.leadVocalist as any).name==="string"?(job.metadata.leadVocalist as any).name:undefined,audio:typeof (job.metadata.leadVocalist as any).audio==="string"?(job.metadata.leadVocalist as any).audio:undefined}:undefined,backupVoiceReferences:Array.isArray(job.metadata.backupVoiceReferences)?job.metadata.backupVoiceReferences.filter((v:unknown)=>Boolean(v&&typeof v==="object"&&typeof (v as {name?:unknown}).name==="string"&&typeof (v as {audio?:unknown}).audio==="string")).slice(0,8) as {name:string;audio:string}[]:[],
       referenceTrackAudio:typeof job.metadata.referenceTrackAudio==="string"?job.metadata.referenceTrackAudio:undefined,
       referenceTrackName:typeof job.metadata.referenceTrackName==="string"?job.metadata.referenceTrackName:undefined,
       referenceRightsConfirmed:job.metadata.referenceRightsConfirmed===true
