@@ -78,7 +78,7 @@ const server=createServer(async(req,res)=>{
     }
     if(req.url==="/image"){
       const input=await body(req,2_000_000);
-      const refs=Array.isArray(input.referenceImages)?input.referenceImages.filter((x:unknown)=>Boolean(x&&typeof x==="object"&&typeof (x as {dataUrl?:unknown}).dataUrl==="string")).slice(0,2) as {name?:string;dataUrl:string}[]:[];return send(res,200,await generateImage(String(input.prompt||""),typeof input.model==="string"?input.model:undefined,refs));
+      const refs=Array.isArray(input.referenceImages)?input.referenceImages.filter((x:unknown)=>Boolean(x&&typeof x==="object"&&typeof (x as {dataUrl?:unknown}).dataUrl==="string")).slice(0,2) as {name?:string;dataUrl:string}[]:[];return send(res,200,await generateImage(String(input.prompt||""),typeof input.model==="string"?input.model:undefined,refs,{aspectRatio:typeof input.aspectRatio==="string"?input.aspectRatio:undefined,resolution:typeof input.resolution==="string"?input.resolution:undefined,quality:typeof input.quality==="string"?input.quality:undefined,format:typeof input.format==="string"?input.format:undefined}));
     }
     if(req.url==="/voice/transcribe"){
       const input=await body(req,36_000_000);
