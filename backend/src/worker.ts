@@ -1,5 +1,5 @@
 import {createDatabasePool,initializeDatabase} from "./db.js";
-import {generateImage,speak} from "./media.js";
+import {generateImage,speak,transcribe} from "./media.js";
 import {generateVideo} from "./video.js";
 import {createObjectStorage} from "./object-storage.js";
 import {JobStorePostgres,type MediaJob} from "./jobs.js";
@@ -13,16 +13,21 @@ await initializeDatabase(pool);
 
 const jobs=new JobStorePostgres(pool);
 const storage=createObjectStorage();
-if(!storage)throw new Error("NEXORA_STORAGE_BUCKET is required for the production worker");
 
 async function processJob(job:MediaJob){
+  if(job.kind==="transcription"){
+    const output=await transcribe(String(job.metadata.audioBase64||""),typeof job.metadata.filename==="string"?job.metadata.filename:"audio.webm");
+    return {type:"transcription",text:output.text,model:output.model};
+  }
   if(job.kind==="speech"){
+    if(!storage)throw new Error("Object storage is required for speech output jobs");
     const output=await speak(String(job.metadata.text||""),typeof job.metadata.voice==="string"?job.metadata.voice:undefined);
     const key=`${job.userId}/jobs/${job.id}.mp3`;
     await storage.put(key,Buffer.from(output.audioBase64,"base64"),"audio/mpeg");
     return {type:"audio",key,model:output.model,format:output.format};
   }
   if(job.kind==="video"){
+    if(!storage)throw new Error("Object storage is required for video output jobs");
     const output=await generateVideo({prompt:String(job.metadata.prompt||""),model:typeof job.metadata.model==="string"?job.metadata.model:undefined,duration:typeof job.metadata.duration==="string"?job.metadata.duration:undefined,continuity:job.metadata.continuity===true,characterConsistency:job.metadata.characterConsistency===true,voiceReference:job.metadata.voiceReference===true});
     const extension=output.contentType.includes("webm")?"webm":"mp4";
     const key=`${job.userId}/jobs/${job.id}.${extension}`;
@@ -30,6 +35,7 @@ async function processJob(job:MediaJob){
     return {type:"video",key,model:output.model,format:output.contentType};
   }
   if(job.kind!=="image")throw new Error(`No active worker adapter is configured for ${job.kind}`);
+  if(!storage)throw new Error("Object storage is required for image output jobs");
   const output=await generateImage(String(job.metadata.prompt||""),typeof job.metadata.model==="string"?job.metadata.model:undefined);
   const key=`${job.userId}/jobs/${job.id}.png`;
   await storage.put(key,Buffer.from(output.imageBase64,"base64"),"image/png");
