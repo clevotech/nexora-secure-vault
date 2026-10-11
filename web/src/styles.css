@@ -83,3 +83,16 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}button:
 .slash-command-grid{display:flex;flex-wrap:wrap;gap:7px;max-height:220px;overflow:auto;padding:4px 2px;overscroll-behavior:contain}
 .slash-command-grid button{max-width:100%;overflow-wrap:anywhere;white-space:normal;font-size:.78rem;padding:7px 9px;min-height:34px}
 @media(max-width:560px){.slash-command-panel{padding:9px}.slash-command-grid{gap:6px;max-height:260px}.slash-command-grid button{flex:1 1 auto}}
+
+/* Nexora Music Studio */
+.music-studio .music-form{display:grid;gap:10px;max-width:100%}
+.music-studio .music-form>label{font-weight:650;margin-top:5px}
+.music-studio .music-form textarea{min-height:94px}
+.music-studio .music-check{display:flex;align-items:flex-start;gap:9px;font-weight:500!important;line-height:1.45}
+.music-studio .music-check input{width:18px;height:18px;flex:0 0 auto;margin-top:2px;accent-color:var(--accent,#8b7cff)}
+.music-result{display:grid;gap:10px;padding:12px;border:1px solid var(--border,rgba(145,160,186,.28));border-radius:12px}
+.music-result audio{width:100%;min-width:0}
+.voice-library-list{display:grid;gap:6px}
+.voice-library-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border,rgba(145,160,186,.22));border-radius:9px;overflow-wrap:anywhere}
+.voice-library-item span{min-width:0;overflow-wrap:anywhere}
+@media(max-width:560px){.music-studio .media-options{grid-template-columns:minmax(0,1fr)}.music-result{padding:9px}.voice-library-item{align-items:flex-start}}
