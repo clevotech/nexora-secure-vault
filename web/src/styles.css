@@ -74,3 +74,12 @@ footer{display:flex;justify-content:space-between;gap:10px;padding:24px 4px 0;co
 
 /* Consistent, accessible interaction feedback across the workspace. */
 button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid #72ead1;outline-offset:3px}button:active:not(:disabled){transform:translateY(1px)}button:disabled{cursor:not-allowed;filter:saturate(.55)}.typing-indicator{display:flex;align-items:center;gap:6px;min-height:30px;color:#91a0ba;font-size:12px}.typing-indicator i{width:6px;height:6px;border-radius:50%;background:#71ead1;animation:nexoraTyping 1s infinite ease-in-out}.typing-indicator i:nth-child(2){animation-delay:.15s}.typing-indicator i:nth-child(3){animation-delay:.3s}.typing-indicator span{margin-left:5px}@keyframes nexoraTyping{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+
+/* Premium video command picker: responsive, scroll-safe, and touch-friendly. */
+.slash-command-panel{margin:8px 0 12px;padding:10px 12px;border:1px solid var(--border,rgba(145,160,186,.28));border-radius:12px;background:rgba(127,127,127,.035)}
+.slash-command-panel summary{cursor:pointer;font-weight:650;user-select:none;padding:3px 0}
+.slash-command-panel .hint{margin:8px 0;font-size:.82rem;line-height:1.45}
+.slash-command-grid{display:flex;flex-wrap:wrap;gap:7px;max-height:220px;overflow:auto;padding:4px 2px;overscroll-behavior:contain}
+.slash-command-grid button{max-width:100%;overflow-wrap:anywhere;white-space:normal;font-size:.78rem;padding:7px 9px;min-height:34px}
+@media(max-width:560px){.slash-command-panel{padding:9px}.slash-command-grid{gap:6px;max-height:260px}.slash-command-grid button{flex:1 1 auto}}
