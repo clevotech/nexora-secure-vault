@@ -4,9 +4,13 @@ import type {ChatRequest,ProviderResult} from "./types.js";
 
 export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   const primary=routeModel(input.model,input.task||"chat");
+  const googleConfigured=Boolean(providerEnv("google").key);
   const configured=(spec:typeof MODELS[number])=>Boolean(providerEnv(spec.provider).key);
+  // When Gemini is configured, never fall back to OpenAI: an OpenAI quota error
+  // must not hide a Google configuration/model/quota error.
+  const eligible=(spec:typeof MODELS[number])=>configured(spec)&&(!googleConfigured||spec.provider!=="openai");
   const candidates=[primary,...MODELS
-    .filter(configured)
+    .filter(eligible)
     .sort((a,b)=>{
       const task=input.task||"chat";
       const aMatch=a.strengths.includes(task)?0:1;
@@ -16,13 +20,13 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
       if(b.provider==="google"&&a.provider!=="google")return 1;
       return a.speed==="fast"?-1:b.speed==="fast"?1:0;
     })]
-    .filter((m,i,a)=>configured(m)&&a.findIndex(x=>x.id===m.id)===i);
+    .filter((m,i,a)=>eligible(m)&&a.findIndex(x=>x.id===m.id)===i);
   let last:unknown;
   for(const spec of candidates){
     try{return await callProvider(spec,input.messages);}
     catch(error){last=error;}
   }
-  throw last instanceof Error?last:new Error("No configured AI provider is available");
+  throw last instanceof Error?last:new Error("No configured AI provider is available. Configure NEXORA_GOOGLE_API_KEY or another supported provider.");
 }
 
 export function validateChat(input:unknown):ChatRequest{
