@@ -6,6 +6,11 @@ import {createDatabasePool,initializeDatabase} from "./db.js";
 import {createPersistence} from "./persistence.js";
 import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
+import {handleLeaveApi} from "./leave-api.js";
+import {handleOrganizationApi} from "./organization-api.js";
+import {employeeIdLogin} from "./employee-id-login.js";
+import {appendAuditEvent} from "./leave.js";
+import {handleWhatsAppWebhook} from "./whatsapp-webhook.js";
 
 const port=Number(process.env.PORT||8787);
 const pool=await createDatabasePool();
@@ -35,6 +40,7 @@ const server=createServer(async(req,res)=>{
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
   if(req.method==="OPTIONS"){res.statusCode=204;return res.end();}
+  if(await handleWhatsAppWebhook(req,res,pool))return;
   if(req.url==="/health" && req.method==="GET"){
     let database:"connected"|"unconfigured"|"unreachable"=pool?"connected":"unconfigured";
     if(pool){try{await pool.query("SELECT 1");}catch{database="unreachable";}}
@@ -47,9 +53,34 @@ const server=createServer(async(req,res)=>{
     return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:Boolean(pool)&&process.env.NEXORA_EMBED_WORKER!=="false"});
   }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
+  if(req.url==="/auth/employee-login"){
+    try{const input=await body(req,10_000);const result=await employeeIdLogin(pool,input,req.socket.remoteAddress||"unknown");return send(res,result.status,result.body);}
+    catch(error){return send(res,400,{error:error instanceof Error?error.message:"Invalid sign-in request"});}
+  }
+  let authenticatedUserId:string|undefined;
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
     const auth=await authenticate(authHeaders);
+    authenticatedUserId=auth.userId;
+    const auditPath=new URL(req.url||"/","http://localhost").pathname;
+    const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
+    res.once("finish",()=>{
+      if(!pool)return;
+      const status=res.statusCode;
+      const outcome: "success"|"failure"|"denied"=status>=500?"failure":status===401||status===403?"denied":status>=400?"failure":"success";
+      void appendAuditEvent(pool,{actorUserId:auth.userId,action:"api.request."+String(req.method||"GET").toLowerCase()+"."+auditPath.replace(/[^a-zA-Z0-9/_-]/g,"").slice(0,160),resourceType:"api_route",resourceId:auditPath,outcome,correlationId,details:{method:req.method||"GET",statusCode:status}}).catch(error=>console.error("Nexora audit write failed",error instanceof Error?error.message:"unknown error"));
+    });
+    if(req.url==="/leave"){
+      const input=await body(req,2_000_000);
+      const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
+      const result=await handleLeaveApi(pool,auth,input,correlationId);
+      return send(res,result.status,result.body);
+    }
+    if(req.url==="/organizations"){
+      const input=await body(req,2_000_000);
+      const result=await handleOrganizationApi(pool,auth,input);
+      return send(res,result.status,result.body);
+    }
     if(req.url==="/chat/stream"){
       const input=validateChat(await body(req));
       res.statusCode=200;
@@ -173,6 +204,10 @@ const server=createServer(async(req,res)=>{
   }catch(error){
     const message=error instanceof Error?error.message:"Request failed";
     const status=/Authentication required|Invalid development authentication token|Production authentication verifier|Authentication failed|Authenticated token/.test(message)?401:message==="Request too large"?413:400;
+    if(pool&&!authenticatedUserId){
+      const path=new URL(req.url||"/","http://localhost").pathname;
+      void appendAuditEvent(pool,{actorUserId:"anonymous",action:"api.request.unauthenticated",resourceType:"api_route",resourceId:path,outcome:status===401?"denied":"failure",details:{method:req.method||"GET",statusCode:status}}).catch(error=>console.error("Nexora audit write failed",error instanceof Error?error.message:"unknown error"));
+    }
     return send(res,status,{error:message});
   }
 });

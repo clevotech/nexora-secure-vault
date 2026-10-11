@@ -8,6 +8,7 @@
     "test": "node --import tsx --test tests/**/*.test.ts",
     "dev": "tsx src/server.ts",
     "worker": "tsx src/worker.ts",
+    "leave-worker": "tsx src/leave-notification-worker.ts",
     "start": "node --import tsx src/server.ts"
   },
   "dependencies": {

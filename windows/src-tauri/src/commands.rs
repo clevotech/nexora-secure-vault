@@ -39,7 +39,7 @@ fn header_json(salt:&[u8],key:&[u8;32],name:&str,size:u64,created:&str,id:&str)-
     let cipher=Aes256Gcm::new_from_slice(key).map_err(|e|e.to_string())?;
     let mut name_nonce=[0u8;NONCE];rand::rng().fill_bytes(&mut name_nonce);
     let safe_name=name.replace(['\\','/'],"_");
-    let metadata=serde_json::to_vec(&serde_json::json!({"originalName":safe_name}));
+    let metadata=serde_json::to_vec(&serde_json::json!({"originalName":safe_name})).map_err(|_|"Metadata serialization failed".to_string())?;
     let name_ciphertext=cipher.encrypt(Nonce::from_slice(&name_nonce),metadata.as_slice()).map_err(|_|"Metadata encryption failed".to_string())?;
     Ok(serde_json::to_vec(&serde_json::json!({"magic":"NSV1","version":2,"algorithm":"AES-256-GCM","kdf":"Argon2id","salt":hex::encode(salt),"chunkSize":CHUNK,"originalName":"Encrypted file","nameNonce":hex::encode(name_nonce),"nameCiphertext":hex::encode(name_ciphertext),"originalSize":size.to_string(),"createdAt":created,"operationId":id})).unwrap())
 }

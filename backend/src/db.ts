@@ -1,4 +1,5 @@
 import {Pool} from "pg";
+import {readFile} from "node:fs/promises";
 
 const SUPABASE_ROOT_CA_URL="https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt";
 
@@ -24,6 +25,18 @@ export async function initializeDatabase(pool:Pool){
     );
     CREATE INDEX IF NOT EXISTS nexora_jobs_user_idx ON nexora_jobs(user_id,created_at DESC);
   `);
+  // Keep the additive leave/audit schema in a versioned SQL file so deploys
+  // can safely create new tables without replacing or dropping existing data.
+  const leaveMigration=await readFile(new URL("../migrations/003_leave_tracker_audit.sql",import.meta.url),"utf8");
+  await pool.query(leaveMigration);
+  const holidayMigration=await readFile(new URL("../migrations/004_leave_holidays.sql",import.meta.url),"utf8");
+  await pool.query(holidayMigration);
+  const organizationMigration=await readFile(new URL("../migrations/005_organizations.sql",import.meta.url),"utf8");
+  await pool.query(organizationMigration);
+  const simpleUserIdsMigration=await readFile(new URL("../migrations/006_simple_user_ids.sql",import.meta.url),"utf8");
+  await pool.query(simpleUserIdsMigration);
+  const organizationHolidayMigration=await readFile(new URL("../migrations/007_organization_leave_holidays.sql",import.meta.url),"utf8");
+  await pool.query(organizationHolidayMigration);
 }
 
 export async function createDatabasePool(){
