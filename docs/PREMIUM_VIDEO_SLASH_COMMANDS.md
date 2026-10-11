@@ -46,3 +46,58 @@
 
 ## Production rule
 Commands expand into plain-language instructions; they do not override model/API hard limits. Set aspect ratio, resolution, duration, audio, and reference assets through the corresponding controls. For long-form videos, generate and assemble multiple clips if the selected provider cannot render the requested duration in one job. Always preserve the user's specified language, country, identity references, brand assets, and no-music requirement.
+
+
+## Camera angles, shot sizes and focus
+- `/pov` — Point-of-view shot.
+- `/overtheshoulder` — Over-the-shoulder composition.
+- `/lowangle` — Low-angle shot.
+- `/highangle` — High-angle shot.
+- `/eyelevel` — Eye-level shot.
+- `/dutchnangle` — Intentional Dutch tilt.
+- `/establishing` — Wide establishing shot.
+- `/wideshot` — Wide shot.
+- `/mediumshot` — Medium shot.
+- `/closeup` — Close-up.
+- `/extremecloseup` — Extreme close-up detail.
+- `/rackfocus` — Rack focus between subjects.
+
+## Camera movements and styles
+- `/zoomin` — Smooth optical zoom in.
+- `/zoomout` — Smooth optical zoom out.
+- `/pushin` — Physical camera push-in.
+- `/pullout` — Physical camera pull-out.
+- `/panleft` — Pan camera left.
+- `/panright` — Pan camera right.
+- `/tiltup` — Tilt camera upward.
+- `/tiltdown` — Tilt camera downward.
+- `/trackleft` — Track laterally left.
+- `/trackright` — Track laterally right.
+- `/dollyin` — Dolly toward subject.
+- `/dollyout` — Dolly away from subject.
+- `/orbit` — Controlled orbit around subject.
+- `/craneup` — Crane or jib rises.
+- `/cranedown` — Crane or jib descends.
+- `/handheld` — Natural handheld camera.
+- `/gimbal` — Stabilized gimbal tracking.
+- `/drone` — Aerial drone reveal.
+- `/lockedoff` — Locked-off static frame.
+- `/whippan` — Fast whip pan.
+- `/reveal` — Gradual subject reveal.
+
+## Transitions and timing
+- `/matchcut` — Visual match cut.
+- `/actionmatch` — Action match transition.
+- `/crossdissolve` — Gentle cross-dissolve.
+- `/hardcut` — Clean hard cut.
+- `/slowmotion` — Cinematic slow motion.
+- `/timelapse` — Time-lapse sequence.
+- `/speedramp` — Controlled speed ramp.
+
+## Usage examples
+- `/zoomin /closeup` — smoothly tighten framing into a close-up.
+- `/dollyin /eyelevel /rackfocus` — physically approach the subject at eye level and shift focus naturally.
+- `/panright /matchcut` — pan right, then transition using a motivated visual match.
+- `/establishing /drone /hardcut /mediumshot` — aerial establishing reveal followed by a clean cut to a medium shot.
+
+Commands are case-insensitive, so `/Zoomin` also works. Combine only a few compatible commands per shot; contradictory camera moves may produce unpredictable results. These commands add prompt instructions and do not guarantee a provider supports every camera behavior natively.
