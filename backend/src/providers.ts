@@ -4,19 +4,25 @@ import {providerEnv} from "./registry.js";
 function requireConfig(provider:ProviderId){const cfg=providerEnv(provider);if(!cfg.key)throw new Error(`Provider ${provider} is not configured`);return cfg;}
 function modelName(spec:ModelSpec){return spec.id.split(":").slice(1).join(":");}
 
-// Keep user-facing AI text clean and readable instead of leaking Markdown
-// markers such as **bold** or ## headings into generated copy.
+// Keep double asterisks only for standalone heading lines. Remove them from
+// inline emphasis and ordinary prose, and never expose hash-based headings.
 export function cleanGeneratedText(value:string){
-  return value
+  const normalized = value
     .replace(/\r\n?/g,"\n")
     .replace(/(^|\n)\s*#{1,6}\s+/g,"$1")
     .replace(/#{2,}/g,"")
-    .replace(/\*\*(.*?)\*\*/gs,"$1")
     .replace(/__(.*?)__/gs,"$1")
     .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g,"$1$2")
     .replace(/(^|\n)\s*`{3,}[^\n]*\n/g,"$1")
-    .replace(/\n\s*`{3,}\s*(?=\n|$)/g,"\n")
-    .trim();
+    .replace(/\n\s*`{3,}\s*(?=\n|$)/g,"\n");
+  return normalized.split("\n").map(line => {
+    const match = line.match(/^(\s*)\*\*([^*\n]{2,100})\*\*(\s*)$/);
+    if (!match) return line.replace(/\*\*(.*?)\*\*/g,"$1");
+    const heading = match[2].trim();
+    // Keep emphasis only for concise, standalone heading-like labels, not sentences.
+    const headingLike = !/[.!?。！？]$/.test(heading) && heading.split(/\s+/).length <= 10;
+    return headingLike ? line : line.replace(/\*\*(.*?)\*\*/g,"$1");
+  }).join("\n").trim();
 }
 function cleanResult(result:ProviderResult):ProviderResult{
   return {...result,content:cleanGeneratedText(result.content)};
