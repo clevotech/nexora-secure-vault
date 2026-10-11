@@ -44,6 +44,7 @@ async function openAI(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderRes
   if(!content)throw new Error("Provider returned no assistant content");
   return {content,provider:"openai",model:spec.id};
 }
+function trimTrailingSlash(value:string){return value.endsWith("/")?value.slice(0,-1):value;}
 function defaultBase(p:ProviderId){return ({xai:"https://api.x.ai/v1",deepseek:"https://api.deepseek.com/v1",mistral:"https://api.mistral.ai/v1"} as Record<string,string>)[p]||"";}
 async function openAICompatible(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
   const {key,base}=requireConfig(spec.provider);const url=(base||defaultBase(spec.provider)).replace(/\/$/,"")+"/chat/completions";
