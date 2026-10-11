@@ -5,7 +5,7 @@ import java.nio.ByteOrder
 
 object NsvProtocol {
     const val MAGIC = "NSV1"
-    const val VERSION = 1
+    const val VERSION = 2
     const val CHUNK_SIZE = 1024 * 1024
 
     fun readUInt32LE(bytes: ByteArray, offset: Int): Long =
@@ -16,7 +16,7 @@ object NsvProtocol {
 
     fun validateHeader(magic: String, version: Int, algorithm: String, kdf: String) {
         require(magic == MAGIC) { "Invalid Nexora container" }
-        require(version == VERSION) { "Unsupported Nexora version" }
+        require(version == 1 || version == VERSION) { "Unsupported Nexora version" }
         require(algorithm == "AES-256-GCM") { "Unsupported encryption algorithm" }
         require(kdf == "Argon2id") { "Unsupported key derivation function" }
     }
