@@ -7,6 +7,7 @@ import {createPersistence} from "./persistence.js";
 import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
 import {handleLeaveApi} from "./leave-api.js";
+import {handleOrganizationApi} from "./organization-api.js";
 import {appendAuditEvent} from "./leave.js";
 import {handleWhatsAppWebhook} from "./whatsapp-webhook.js";
 
@@ -68,6 +69,11 @@ const server=createServer(async(req,res)=>{
       const input=await body(req,2_000_000);
       const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
       const result=await handleLeaveApi(pool,auth,input,correlationId);
+      return send(res,result.status,result.body);
+    }
+    if(req.url==="/organizations"){
+      const input=await body(req,2_000_000);
+      const result=await handleOrganizationApi(pool,auth,input);
       return send(res,result.status,result.body);
     }
     if(req.url==="/chat/stream"){
