@@ -10,7 +10,7 @@ export async function employeeIdLogin(pool:Pool|null,raw:unknown,ip:string):Prom
  const input=raw as Record<string,unknown>;
  const userCode=String(input.userId||"").trim().toUpperCase().slice(0,40);
  const password=String(input.password||"");
- if(!/^NXU-[A-F0-9]{12}$/.test(userCode)||password.length<1||password.length>1024)return fail(401,"User ID or password is incorrect.");
+ if(!/^NXU-(?:[A-F0-9]{8}|[A-F0-9]{12})$/.test(userCode)||password.length<1||password.length>1024)return fail(401,"User ID or password is incorrect.");
  const key=ip.slice(0,100)+":"+userCode,now=Date.now(),prior=attempts.get(key);
  if(prior&&prior.until>now&&prior.count>=MAX_ATTEMPTS)return fail(429,"Too many sign-in attempts. Please wait 15 minutes and try again.");
  if(!prior||prior.until<=now)attempts.set(key,{count:1,until:now+WINDOW_MS});
