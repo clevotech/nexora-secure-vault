@@ -36,3 +36,22 @@ export async function hasEmployeeSession():Promise<boolean>{
   const {data:{session}}=await supabase.auth.getSession();
   return Boolean(session&&!session.user.is_anonymous);
 }
+
+export async function prepareAdminAccount(email:string,password:string,fullName:string):Promise<void>{
+  if(!supabase)throw new Error("Account setup is not configured. Contact your Nexora administrator.");
+  const normalized=email.trim().toLowerCase();
+  if(password.length<6)throw new Error("Choose a password or PIN with at least 6 characters.");
+  const {data:{session}}=await supabase.auth.getSession();
+  if(session&&!session.user.is_anonymous){
+    if((session.user.email||"").toLowerCase()!==normalized)throw new Error("The Admin Officer email must match the signed-in account email.");
+    return;
+  }
+  if(session?.user.is_anonymous){
+    const {error}=await supabase.auth.updateUser({email:normalized,password,data:{full_name:fullName.trim()}});
+    if(error)throw new Error(error.message);
+    return;
+  }
+  const {data,error}=await supabase.auth.signUp({email:normalized,password,options:{data:{full_name:fullName.trim()}}});
+  if(error)throw new Error(error.message);
+  if(!data.session)throw new Error("Check your email to confirm the account, then sign in before registering the organization.");
+}
