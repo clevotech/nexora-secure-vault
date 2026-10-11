@@ -59,7 +59,7 @@ const server=createServer(async(req,res)=>{
       res.flushHeaders();
       try{
         await routeChatStream(input,(delta)=>{if(!res.destroyed)res.write("data: "+JSON.stringify({content:delta})+"\n\n");});
-        if(!res.destroyed){res.write("data: [DONE]\\n\\n");res.end();}
+        if(!res.destroyed){res.write("data: [DONE]\n\n");res.end();}
       }catch(error){
         if(!res.destroyed){res.write("data: "+JSON.stringify({error:error instanceof Error?error.message:"AI stream failed"})+"\n\n");res.end();}
       }
