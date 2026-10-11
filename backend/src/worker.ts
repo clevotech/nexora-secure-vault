@@ -28,11 +28,17 @@ async function processJob(job:MediaJob){
     return {type:"audio",key,model:output.model,format:output.format};
   }
   if(job.kind==="video"){
-    if(!storage)throw new Error("Object storage is required for video output jobs");
     const output=await generateVideo({prompt:String(job.metadata.prompt||""),model:typeof job.metadata.model==="string"?job.metadata.model:undefined,duration:typeof job.metadata.duration==="string"?job.metadata.duration:undefined,continuity:job.metadata.continuity===true,characterConsistency:job.metadata.characterConsistency===true,voiceReference:job.metadata.voiceReference===true});
+    const bytes=Buffer.from(output.videoBase64,"base64");
+    if(!storage){
+      // Short clips can still be returned securely through the authenticated job API
+      // when an S3-compatible bucket has not been configured.
+      if(bytes.byteLength>18_000_000)throw new Error("Generated video is too large for inline delivery. Configure NEXORA_STORAGE_BUCKET and its S3 credentials to store larger videos.");
+      return {type:"video",videoBase64:output.videoBase64,model:output.model,format:output.contentType};
+    }
     const extension=output.contentType.includes("webm")?"webm":"mp4";
     const key=`${job.userId}/jobs/${job.id}.${extension}`;
-    await storage.put(key,Buffer.from(output.videoBase64,"base64"),output.contentType);
+    await storage.put(key,bytes,output.contentType);
     return {type:"video",key,model:output.model,format:output.contentType};
   }
   if(job.kind!=="image")throw new Error(`No active worker adapter is configured for ${job.kind}`);
