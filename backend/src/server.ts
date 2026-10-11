@@ -1,6 +1,6 @@
 import {createServer} from "node:http";
 import {spawn,type ChildProcess} from "node:child_process";
-import {routeChat,validateChat} from "./router.js";
+import {routeChat,routeChatStream,validateChat} from "./router.js";
 import {authenticate} from "./auth.js";
 import {createDatabasePool,initializeDatabase} from "./db.js";
 import {createPersistence} from "./persistence.js";
@@ -50,6 +50,21 @@ const server=createServer(async(req,res)=>{
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
     const auth=await authenticate(authHeaders);
+    if(req.url==="/chat/stream"){
+      const input=validateChat(await body(req));
+      res.statusCode=200;
+      res.setHeader("Content-Type","text/event-stream; charset=utf-8");
+      res.setHeader("Cache-Control","no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering","no");
+      res.flushHeaders();
+      try{
+        await routeChatStream(input,(delta)=>{if(!res.destroyed)res.write("data: "+JSON.stringify({content:delta})+"\\n\\n");});
+        if(!res.destroyed){res.write("data: [DONE]\\n\\n");res.end();}
+      }catch(error){
+        if(!res.destroyed){res.write("data: "+JSON.stringify({error:error instanceof Error?error.message:"AI stream failed"})+"\\n\\n");res.end();}
+      }
+      return;
+    }
     if(req.url==="/chat"){
       const input=validateChat(await body(req));
       return send(res,200,await routeChat(input));
