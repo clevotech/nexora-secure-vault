@@ -8,6 +8,11 @@ async function googleGenerate(model:string,contents:unknown,generationConfig?:un
   const r=await fetch(`${base}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents,...(generationConfig?{generationConfig}:{})})});
   return parse(r);
 }
+async function googleInteraction(model:string,input:unknown){
+  const {key,base}=googleConfig();
+  const r=await fetch(`${base}/interactions`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({model,input})});
+  return parse(r);
+}
 function pcmToWav(pcm:Buffer,sampleRate=24000,channels=1){
   const header=Buffer.alloc(44);header.write("RIFF",0);header.writeUInt32LE(36+pcm.length,4);header.write("WAVE",8);header.write("fmt ",12);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(channels,22);header.writeUInt32LE(sampleRate,24);header.writeUInt32LE(sampleRate*channels*2,28);header.writeUInt16LE(channels*2,32);header.writeUInt16LE(16,34);header.write("data",36);header.writeUInt32LE(pcm.length,40);return Buffer.concat([header,pcm]);
 }
@@ -31,11 +36,12 @@ export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE
 export async function transcribe(audioBase64:string,filename="audio.webm"){
   if(!audioBase64||audioBase64.length>35_000_000)throw new Error("Invalid audio payload");
   if(process.env.NEXORA_GOOGLE_API_KEY){
-    const mimeType=/\.wav$/i.test(filename)?"audio/wav":/\.mp3$/i.test(filename)?"audio/mpeg":/\.mp4$/i.test(filename)?"audio/mp4":"audio/webm";
-    const d=await googleGenerate(process.env.NEXORA_TRANSCRIBE_MODEL?.startsWith("gemini-")?process.env.NEXORA_TRANSCRIBE_MODEL:"gemini-2.5-flash",[{role:"user",parts:[{text:"Transcribe the spoken words in this audio accurately. Return only the transcription, without commentary."},{inlineData:{mimeType,data:audioBase64}}]}]);
-    const text=d?.candidates?.[0]?.content?.parts?.map((p:{text?:string})=>p.text||"").join("").trim();
-    if(!text)throw new Error("Gemini returned no transcription. Check audio format and Google API quota.");
-    return {text,model:"gemini-2.5-flash",provider:"google"};
+    const mimeType=/\\.wav$/i.test(filename)?"audio/wav":/\\.mp3$/i.test(filename)?"audio/mpeg":/\\.mp4$/i.test(filename)?"audio/mp4":"audio/webm";
+    const model=process.env.NEXORA_TRANSCRIBE_MODEL?.startsWith("gemini-")?process.env.NEXORA_TRANSCRIBE_MODEL:"gemini-3.8-flash";
+    const d=await googleInteraction(model,[{type:"text",text:"Transcribe the spoken words in this audio accurately. Return only the transcription, without commentary."},{type:"audio",data:audioBase64,mime_type:mimeType}]);
+    const transcript=typeof d?.output_text==="string"?d.output_text:(d?.steps||[]).filter((step:{type?:string})=>step.type==="model_output").flatMap((step:{content?:{type?:string,text?:string}[]})=>step.content||[]).filter((item:{type?:string})=>item.type==="text").map((item:{text?:string})=>item.text||"").join("").trim();
+    if(!transcript)throw new Error(d?.errors?.map((e:{message?:string})=>e.message).filter(Boolean).join("; ")||"Gemini returned no transcription. Check audio format and Google API quota.");
+    return {text:transcript,model,provider:"google"};
   }
   const bytes=Buffer.from(audioBase64,"base64");const form=new FormData();
   form.append("file",new Blob([bytes],{type:"audio/webm"}),filename);form.append("model",process.env.NEXORA_TRANSCRIBE_MODEL||"gpt-transcribe");

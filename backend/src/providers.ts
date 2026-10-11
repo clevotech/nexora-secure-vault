@@ -35,7 +35,7 @@ async function google(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderRes
   const {key,base}=requireConfig("google");
   const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+"/interactions";
   const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n\n");
-  const input=messages.filter(m=>m.role!=="system").map(m=>({role:m.role,content:m.content}));
+  const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]\n${m.content}`).join("\n\n");
   const data=await jsonFetch(url,{method:"POST",headers:{"x-goog-api-key":key!},body:JSON.stringify({model:modelName(spec),input,...(system?{system_instruction:system}:{})})});
   const content=typeof data?.output_text==="string"?data.output_text:(data?.steps||[]).filter((s:{type?:string})=>s.type==="model_output").flatMap((s:{content?:{type?:string,text?:string}[]})=>s.content||[]).filter((x:{type?:string})=>x.type==="text").map((x:{text?:string})=>x.text||"").join("");
   if(!content)throw new Error(data?.errors?.map((e:{message?:string})=>e.message).filter(Boolean).join("; ")||"Google Interactions API returned no assistant content");
