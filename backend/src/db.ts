@@ -35,6 +35,8 @@ export async function initializeDatabase(pool:Pool){
   await pool.query(organizationMigration);
   const simpleUserIdsMigration=await readFile(new URL("../migrations/006_simple_user_ids.sql",import.meta.url),"utf8");
   await pool.query(simpleUserIdsMigration);
+  const organizationHolidayMigration=await readFile(new URL("../migrations/007_organization_leave_holidays.sql",import.meta.url),"utf8");
+  await pool.query(organizationHolidayMigration);
 }
 
 export async function createDatabasePool(){
