@@ -66,6 +66,29 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
+      - name: Generate Windows bundle icon when missing
+        shell: pwsh
+        run: |
+          $iconPath = "windows/src-tauri/icons/icon.ico"
+          New-Item -ItemType Directory -Force -Path "windows/src-tauri/icons" | Out-Null
+          Add-Type -AssemblyName System.Drawing
+          $bitmap = New-Object System.Drawing.Bitmap 64, 64
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.Clear([System.Drawing.Color]::FromArgb(20, 24, 45))
+          $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(139, 124, 255))
+          $graphics.FillRectangle($brush, 8, 8, 48, 48)
+          $font = New-Object System.Drawing.Font("Arial", 30, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+          $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+          $graphics.DrawString("N", $font, $white, 16, 12)
+          $bitmap.Save("$env:RUNNER_TEMP/nexora-icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          $graphics.Dispose(); $bitmap.Dispose(); $brush.Dispose(); $white.Dispose(); $font.Dispose()
+          Add-Type -AssemblyName System.Drawing
+          $bmp = [System.Drawing.Bitmap]::FromFile("$env:RUNNER_TEMP/nexora-icon.png")
+          $hIcon = $bmp.GetHicon()
+          $icon = [System.Drawing.Icon]::FromHandle($hIcon)
+          $stream = [System.IO.File]::Open($iconPath, [System.IO.FileMode]::Create)
+          $icon.Save($stream)
+          $stream.Dispose(); $icon.Dispose(); $bmp.Dispose()
       - run: ../../web/node_modules/.bin/tauri build --debug --config ../tauri.conf.json
         working-directory: windows/src-tauri
 
