@@ -38,12 +38,12 @@ const commandMap = new Map(VIDEO_SLASH_COMMANDS.map(item => [item.command, item]
 export function expandVideoCommands(input: string): { prompt: string; applied: string[]; unknown: string[] } {
   const applied: string[] = [];
   const unknown: string[] = [];
-  const prompt = input.replace(/(^|\\s)(\\/[a-z][a-z0-9-]*)(?=\\s|$)/gi, (whole, prefix: string, token: string) => {
+  const prompt = input.replace(/(^|\s)(\/[a-z][a-z0-9-]*)(?=\s|$)/gi, (whole, prefix: string, token: string) => {
     const command = token.toLowerCase();
     if (commandMap.has(command)) { applied.push(command); return prefix; }
     unknown.push(command);
     return whole;
-  }).replace(/[ \\t]{2,}/g, " ").replace(/\\n{3,}/g, "\\n\\n").trim();
+  }).replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   const unique = [...new Set(applied)];
-  return { prompt: [prompt, ...unique.map(command => commandMap.get(command)!.instruction)].filter(Boolean).join("\\n\\n"), applied: unique, unknown: [...new Set(unknown)] };
+  return { prompt: [prompt, ...unique.map(command => commandMap.get(command)!.instruction)].filter(Boolean).join("\n\n"), applied: unique, unknown: [...new Set(unknown)] };
 }
