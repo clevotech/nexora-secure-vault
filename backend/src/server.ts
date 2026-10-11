@@ -112,7 +112,7 @@ const server=createServer(async(req,res)=>{
     }
     if(req.url==="/jobs"){
       const input=await body(req,25_000_000);
-      if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind)){
+      if(input.action==="create" && ["image","video","transcription","speech","music"].includes(input.kind)){
         return send(res,202,{job:await jobs.create(auth.userId,input.kind,input.metadata||{})});
       }
       if(input.action==="get")return send(res,200,{job:await jobs.get(auth.userId,String(input.id))||null});
