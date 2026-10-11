@@ -2,7 +2,7 @@ import type {ChatMessage,ModelSpec,ProviderId,ProviderResult} from "./types.js";
 import {providerEnv} from "./registry.js";
 
 function requireConfig(provider:ProviderId){const cfg=providerEnv(provider);if(!cfg.key)throw new Error(`Provider ${provider} is not configured`);return cfg;}
-function modelName(spec:ModelSpec){return spec.id.split(":").slice(1).join(":");}
+function modelName(spec:ModelSpec){if(spec.provider==="google")return "gemini-2.5-flash";return spec.id.split(":").slice(1).join(":");}
 async function jsonFetch(url:string,init:RequestInit){
   const r=await fetch(url,{...init,headers:{"Content-Type":"application/json",...(init.headers||{})}});
   const data=await r.json().catch(()=>({}));
