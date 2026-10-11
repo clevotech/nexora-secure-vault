@@ -34,6 +34,18 @@ object NsvCrypto {
         return out
     }
 
+    fun encryptMetadata(key: ByteArray, plain: ByteArray, nonce: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
+        return cipher.doFinal(plain)
+    }
+
+    fun decryptMetadata(key: ByteArray, ciphertext: ByteArray, nonce: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
+        return cipher.doFinal(ciphertext)
+    }
+
     fun encryptChunk(key: ByteArray, plain: ByteArray, nonce: ByteArray, aad: ByteArray): ByteArray {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
