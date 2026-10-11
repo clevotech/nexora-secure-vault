@@ -18,14 +18,17 @@ function pcmToWav(pcm:Buffer,sampleRate=24000,channels=1){
 }
 
 export type ImageReference={name?:string;dataUrl:string};
-export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare",referenceImages:ImageReference[]=[]){
+export type ImageOptions={aspectRatio?:string;resolution?:string;quality?:string;format?:string};
+export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare",referenceImages:ImageReference[]=[],options:ImageOptions={}){
   if(!prompt||prompt.length>32000)throw new Error("Invalid image prompt");
   if(referenceImages.length>2||referenceImages.some(x=>typeof x.dataUrl!=="string"||!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(x.dataUrl)))throw new Error("Provide up to 2 valid PNG, JPEG, or WebP reference images.");
   const googleKey=process.env.NEXORA_GOOGLE_API_KEY;
   if(googleKey){
     const selected=model.startsWith("gemini-")?model:"gemini-3.1-flash-image";
     const requestParts:unknown[]=[{text:prompt},...referenceImages.map(ref=>{const match=ref.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/);if(!match)throw new Error("Unsupported reference image format");return {inlineData:{mimeType:match[1]==="image/jpg"?"image/jpeg":match[1],data:match[2]}}})];
-    const d=await googleGenerate(selected,[{role:"user",parts:requestParts}],{responseModalities:["TEXT","IMAGE"]});
+    const aspectRatio=["1:1","3:2","2:3","4:3","3:4","16:9","9:16","21:9"].includes(options.aspectRatio||"")?options.aspectRatio:"1:1";
+    const imageSize=["1K","2K","4K"].includes(options.resolution||"")?options.resolution:"1K";
+    const d=await googleGenerate(selected,[{role:"user",parts:requestParts}],{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio,imageSize}});
     const responseParts=(d?.candidates?.[0]?.content?.parts||[]) as {inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}}[];
     const item=responseParts.find(p=>Boolean(p.inlineData?.data||p.inline_data?.data));
     const imageData=item?.inlineData?.data||item?.inline_data?.data;
@@ -33,7 +36,7 @@ export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE
     throw new Error("Gemini returned no image. Check API access and image-generation quota for gemini-2.5-flash-image.");
   }
   if(referenceImages.length)throw new Error("Image reference inputs are not enabled for the current OpenAI image adapter. Configure the Google image provider or use text-only generation.");
-  const r=await fetch(`${OPENAI}/images/generations`,{method:"POST",headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt})});
+  const r=await fetch(`${OPENAI}/images/generations`,{method:"POST",headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt,size:({ "1:1":"1024x1024","3:2":"1536x1024","2:3":"1024x1536","4:3":"1536x1024","3:4":"1024x1536","16:9":"1536x1024","9:16":"1024x1536","21:9":"1536x1024"} as Record<string,string>)[options.aspectRatio||"1:1"],quality:["low","medium","high"].includes(options.quality||"")?options.quality:"high",output_format:["png","jpeg","webp"].includes(options.format||"")?options.format:"png"})});
   const d=await parse(r);const item=d?.data?.[0];if(!item?.b64_json)throw new Error("Image provider returned no image data");return {model,imageBase64:item.b64_json,provider:"openai"};
 }
 
