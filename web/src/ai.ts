@@ -68,3 +68,5 @@ export async function waitForJob(id:string,signal?:AbortSignal,timeoutMs=120000,
 export const getIntegrations=()=>request("/integrations",{action:"list"});
 
 export async function publishSite(name:string,html:string):Promise<{url?:string;message?:string}>{return request("/deploy/site",{name,html});}
+
+export const leaveApi=(input:Record<string,unknown>)=>request("/leave",input);
