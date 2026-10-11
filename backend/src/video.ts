@@ -1,4 +1,4 @@
-export type VideoRequest={prompt:string;model?:string;duration?:string;continuity?:boolean;characterConsistency?:boolean;voiceReference?:boolean};
+export type VideoRequest={prompt:string;model?:string;duration?:string;continuity?:boolean;characterConsistency?:boolean;voiceReference?:boolean;characterReferenceImages?:{name?:string;dataUrl:string}[];voiceReferenceAudio?:string;regionalAccent?:string;voiceStyle?:string;voiceName?:string};
 export type VideoResult={videoBase64:string;model?:string;contentType:string};
 
 const trimSlash=(value:string)=>value.endsWith("/")?value.slice(0,-1):value;
@@ -8,7 +8,7 @@ const parse=async(r:Response)=>{const d=await r.json().catch(()=>({}));if(!r.ok)
 
 async function generateWithConfiguredProvider(input:VideoRequest,url:string):Promise<VideoResult>{
   const headers={"Content-Type":"application/json",...(apiKey()?{Authorization:`Bearer ${apiKey()}`}:{})};
-  const created=await parse(await fetch(url,{method:"POST",headers,body:JSON.stringify({prompt:input.prompt,model:input.model||process.env.NEXORA_VIDEO_MODEL,duration:input.duration,continuity:input.continuity,characterConsistency:input.characterConsistency,voiceReference:input.voiceReference})}));
+  const created=await parse(await fetch(url,{method:"POST",headers,body:JSON.stringify({prompt:input.prompt,model:input.model||process.env.NEXORA_VIDEO_MODEL,duration:input.duration,continuity:input.continuity,characterConsistency:input.characterConsistency,voiceReference:input.voiceReference,characterReferenceImages:input.characterReferenceImages||[],voiceReferenceAudio:input.voiceReferenceAudio,regionalAccent:input.regionalAccent,voiceStyle:input.voiceStyle,voiceName:input.voiceName})}));
   const jobId=String(created.jobId||created.id||"");
   if(!jobId)throw new Error("Video provider returned no job ID");
   const timeout=Date.now()+Math.max(60_000,Number(process.env.NEXORA_VIDEO_TIMEOUT_MS||1_800_000));
@@ -28,6 +28,7 @@ async function generateWithConfiguredProvider(input:VideoRequest,url:string):Pro
 }
 
 async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
+  if((input.characterReferenceImages?.length||0)>0||input.voiceReferenceAudio)throw new Error("The built-in Google Veo adapter currently cannot pass uploaded character images or custom voice samples. Configure NEXORA_VIDEO_API_URL with a provider adapter that supports reference inputs; your uploads were not silently ignored.");
   const key=process.env.NEXORA_GOOGLE_API_KEY;
   if(!key)throw new Error("Video generation is not configured. Add a supported video provider or NEXORA_GOOGLE_API_KEY.");
   const durationSeconds=Number((input.duration||"8").trim().split(" ")[0]);
