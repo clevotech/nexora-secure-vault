@@ -17,11 +17,11 @@ function pcmToWav(pcm:Buffer,sampleRate=24000,channels=1){
   const header=Buffer.alloc(44);header.write("RIFF",0);header.writeUInt32LE(36+pcm.length,4);header.write("WAVE",8);header.write("fmt ",12);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(channels,22);header.writeUInt32LE(sampleRate,24);header.writeUInt32LE(sampleRate*channels*2,28);header.writeUInt16LE(channels*2,32);header.writeUInt16LE(16,34);header.write("data",36);header.writeUInt32LE(pcm.length,40);return Buffer.concat([header,pcm]);
 }
 
-export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gemini-2.5-flash-image"){
+export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare"){
   if(!prompt||prompt.length>32000)throw new Error("Invalid image prompt");
   const googleKey=process.env.NEXORA_GOOGLE_API_KEY;
   if(googleKey){
-    const selected=model.startsWith("gemini-")?model:"gemini-2.5-flash-image";
+    const selected=model.startsWith("gemini-")?model:"gemini-3.1-flash-image";
     const d=await googleGenerate(selected,[{role:"user",parts:[{text:prompt}]}],{responseModalities:["TEXT","IMAGE"]});
     const parts=d?.candidates?.[0]?.content?.parts||[];
     const item=parts.find((p:{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}})=>Boolean(p.inlineData?.data||p.inline_data?.data));
