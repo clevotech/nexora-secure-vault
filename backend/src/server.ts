@@ -8,7 +8,7 @@ import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
 
 const port=Number(process.env.PORT||8787);
-const pool=createDatabasePool();
+const pool=await createDatabasePool();
 const persistence=createPersistence(pool);
 const {memory,credits,jobs}=persistence;
 const objectStorage=createObjectStorage();
