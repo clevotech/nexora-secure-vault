@@ -1,4 +1,4 @@
-import {createSalt,deriveKey,encryptChunk,decryptChunk,operationId} from "./crypto.js";
+import {createSalt,deriveKey,encryptChunk,decryptChunk,operationId,encryptMetadata,decryptMetadata} from "./crypto.js";
 import {CHUNK_SIZE,NSV_MAGIC,NSV_VERSION,encodeHeader,decodeHeader,type NsvHeader} from "./protocol.js";
 export type ByteSource=AsyncIterable<Uint8Array>;
 export type ByteSink=(chunk:Uint8Array)=>Promise<void>|void;
