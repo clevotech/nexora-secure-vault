@@ -28,16 +28,27 @@ async function generateWithConfiguredProvider(input:VideoRequest,url:string):Pro
 }
 
 async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
-  if((input.characterReferenceImages?.length||0)>0||input.voiceReferenceAudio)throw new Error("The built-in Google Veo adapter currently cannot pass uploaded character images or custom voice samples. Configure NEXORA_VIDEO_API_URL with a provider adapter that supports reference inputs; your uploads were not silently ignored.");
+  // Veo 3.1 supports up to three visual reference images. Custom audio cloning
+  // is not exposed by this adapter, so fail explicitly rather than ignore it.
+  if(input.voiceReferenceAudio)throw new Error("Uploaded custom voice samples are not supported by the built-in Google Veo adapter. Configure NEXORA_VIDEO_API_URL with a provider that explicitly supports voice-reference audio; the sample was not used.");
   const key=process.env.NEXORA_GOOGLE_API_KEY;
   if(!key)throw new Error("Video generation is not configured. Add a supported video provider or NEXORA_GOOGLE_API_KEY.");
-  const durationSeconds=Number((input.duration||"8").trim().split(" ")[0]);
-  if(![4,6,8].includes(durationSeconds))throw new Error("Google Veo generates one short clip of up to 8 seconds. Select 4, 6, or 8 seconds, or configure NEXORA_VIDEO_API_URL for a long-form video provider.");
+  const references=input.characterReferenceImages||[];
+  if(references.length>3)throw new Error("Google Veo supports up to 3 character/reference images.");
+  const parsedReferences=references.map(ref=>{
+    const match=typeof ref.dataUrl==="string"?ref.dataUrl.match(/^data:(image\\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/):null;
+    if(!match)throw new Error("Each character reference must be a valid PNG, JPEG, or WebP image.");
+    return {image:{inlineData:{mimeType:match[1]==="image/jpg"?"image/jpeg":match[1],data:match[2]}},referenceType:"asset"};
+  });
+  const requestedDuration=Number((input.duration||"8").trim().split(" ")[0]);
+  const durationSeconds=parsedReferences.length?8:requestedDuration;
+  if(![4,6,8].includes(durationSeconds))throw new Error("Google Veo generates one short clip of 4, 6, or 8 seconds. Select a short duration or configure NEXORA_VIDEO_API_URL for a long-form video provider.");
   const configuredModel=(process.env.NEXORA_VIDEO_MODEL||"").trim();
   const model=configuredModel.startsWith("veo-3.1-")?configuredModel:"veo-3.1-generate-preview";
   const apiBase=trimSlash(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta");
   const headers={"Content-Type":"application/json","x-goog-api-key":key};
-  const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[{prompt:input.prompt}],parameters:{aspectRatio:"9:16",durationSeconds:String(durationSeconds)}})}));
+  const instance={prompt:input.prompt,...(parsedReferences.length?{referenceImages:parsedReferences}:{})};
+  const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[instance],parameters:{aspectRatio:"9:16",durationSeconds:String(durationSeconds)}})}));
   const operationName=String(started.name||started.operation?.name||"");
   if(!operationName)throw new Error("Google Veo returned no operation name");
   const timeout=Date.now()+Math.max(60_000,Number(process.env.NEXORA_VIDEO_TIMEOUT_MS||1_800_000));
