@@ -46,7 +46,7 @@ export async function createDatabasePool(){
   // Supabase documents this public root CA for verified PostgreSQL TLS.
   // Prefer a project-specific CA configured in Render, otherwise retrieve the
   // official Supabase root CA over HTTPS using Node's normal certificate checks.
-  const configuredCa=process.env.SUPABASE_DB_CA?.replace(/\\\\n/g,"\\n").trim();
+  const configuredCa=process.env.SUPABASE_DB_CA?.replace(/\\n/g,"\n").trim();
   let ca=configuredCa;
   if(!ca){
     const response=await fetch(SUPABASE_ROOT_CA_URL);
