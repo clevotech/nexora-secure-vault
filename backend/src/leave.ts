@@ -7,6 +7,21 @@ export function validIsoDate(value:unknown):value is string {
   return !Number.isNaN(date.valueOf())&&date.toISOString().slice(0,10)===value;
 }
 
+export function localTimeToUtc(date:string,timeZone:string,hour=9):Date {
+  if(!validIsoDate(date))throw new Error("Invalid local calendar date.");
+  let guess=Date.parse(date+"T"+String(hour).padStart(2,"0")+":00:00.000Z");
+  const formatter=new Intl.DateTimeFormat("en-CA",{timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
+  for(let i=0;i<4;i++){
+    const parts=Object.fromEntries(formatter.formatToParts(new Date(guess)).map(p=>[p.type,p.value]));
+    const represented=Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day),Number(parts.hour),Number(parts.minute),Number(parts.second));
+    const target=Date.parse(date+"T"+String(hour).padStart(2,"0")+":00:00.000Z");
+    const adjustment=target-represented;
+    guess+=adjustment;
+    if(adjustment===0)break;
+  }
+  return new Date(guess);
+}
+
 export function expectedResumption(endDate:string,workweekDays:number[]= [1,2,3,4,5],holidays:string[]=[]):string {
   const blocked=new Set(holidays);
   const cursor=new Date(endDate+"T00:00:00.000Z");
