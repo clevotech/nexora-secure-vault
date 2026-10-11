@@ -28,7 +28,7 @@ The sender process is implemented at backend/src/leave-notification-worker.ts an
 
 Create and approve the six matching WhatsApp Business templates: leave_request_submitted, leave_request_approved, leave_request_rejected, leave_return_3_days, leave_return_1_day, and leave_return_today. Their body placeholders must match the worker mappings. The worker claims queued records safely across instances and retries transient failures with exponential backoff. A signed delivery-status webhook is implemented at /webhooks/whatsapp. It verifies the x-hub-signature-256 HMAC using WHATSAPP_APP_SECRET and updates sent/delivered/failed states. Verify the callback with WHATSAPP_WEBHOOK_VERIFY_TOKEN and confirm Meta webhook delivery in the live deployment before announcing production readiness.
 
-Return reminders are scheduled for 09:00 in each employee's validated IANA timezone, including daylight-saving offsets. Delivery-status webhook handling remains a production task. Actual WhatsApp delivery requires valid Meta credentials, approved templates, and a separately deployed worker process.
+Return reminders are scheduled for 09:00 in each employee's validated IANA timezone, including daylight-saving offsets. The webhook code is implemented but has not been tested against a live Meta app. Actual WhatsApp delivery requires valid Meta credentials, approved templates, a separately deployed worker process, and a verified callback subscription.
 
 ## Deployment notes
 
