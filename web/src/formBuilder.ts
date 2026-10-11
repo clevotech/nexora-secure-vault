@@ -1,7 +1,7 @@
 export type FormFieldType = "text" | "email" | "tel" | "number" | "date" | "textarea" | "select" | "checkbox";
 export type FormField = { id: string; label: string; type: FormFieldType; required: boolean; options: string };
 
-const esc = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] || char));
+const esc = (value: string) => value.replace(/[&<>"']/g, (char) => { const map: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }; return map[char] || char; });
 const safeName = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
 
 function control(field: FormField): string {
