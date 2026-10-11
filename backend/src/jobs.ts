@@ -1,6 +1,6 @@
 import type {Pool} from "pg";
 export type JobStatus="queued"|"running"|"completed"|"failed";
-export type MediaJob={id:string;userId:string;kind:"image"|"video"|"transcription"|"speech";status:JobStatus;createdAt:string;updatedAt:string;metadata:Record<string,unknown>;result?:unknown;error?:string};
+export type MediaJob={id:string;userId:string;kind:"image"|"video"|"transcription"|"speech"|"music";status:JobStatus;createdAt:string;updatedAt:string;metadata:Record<string,unknown>;result?:unknown;error?:string};
 
 export class JobStoreMemory{
   private jobs=new Map<string,MediaJob>();
