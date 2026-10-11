@@ -20,7 +20,7 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
  const headers:Record<string,string>={"Content-Type":"application/json","Accept":"text/event-stream, application/json"};
  if(token)headers["Authorization"]=["Bearer",token].join(" ");
  let response:Response;
- try{response=await fetch(base.replace(/\\/$/,"")+"/chat/stream",{method:"POST",headers,body:JSON.stringify({messages,model,stream:true}),signal});}
+ try{response=await fetch(base.replace(/\/$/,"")+"/chat/stream",{method:"POST",headers,body:JSON.stringify({messages,model,stream:true}),signal});}
  catch(error){if(signal?.aborted)throw error;return aiChat(messages,model,signal);}
  if(!response.ok||!response.body)return aiChat(messages,model,signal);
  const type=response.headers.get("content-type")||"";
@@ -28,7 +28,7 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
  const reader=response.body.getReader(),decoder=new TextDecoder();
  let buffer="",content="";
  const consume=(raw:string)=>{
-  for(const line of raw.split(/\\r?\\n/)){
+  for(const line of raw.split(/\r?\n/)){
    const row=line.trim();if(!row||row.startsWith(":"))continue;
    const payload=row.startsWith("data:")?row.slice(5).trim():row;if(payload==="[DONE]")continue;
    let piece="";
@@ -37,7 +37,7 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
    if(piece){content+=piece;onToken?.(content);}
   }
  };
- try{while(true){const {done,value}=await reader.read();buffer+=decoder.decode(value,{stream:!done});const lines=buffer.split(/\\r?\\n/);buffer=lines.pop()||"";consume(lines.join("\\n"));if(done)break;}if(buffer.trim())consume(buffer);}
+ try{while(true){const {done,value}=await reader.read();buffer+=decoder.decode(value,{stream:!done});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";consume(lines.join("\n"));if(done)break;}if(buffer.trim())consume(buffer);
  finally{reader.releaseLock();}
  if(!content)return aiChat(messages,model,signal);
  return {content};
