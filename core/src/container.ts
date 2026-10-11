@@ -1,4 +1,4 @@
-import {createSalt,deriveKey,encryptChunk,decryptChunk,operationId} from "./crypto.js";
+import {createSalt,deriveKey,encryptChunk,decryptChunk,operationId,encryptMetadata,decryptMetadata} from "./crypto.js";
 import {CHUNK_SIZE,NSV_MAGIC,NSV_VERSION,MAX_CHUNK_BYTES,MAX_HEADER_BYTES,decodeHeader,encodeHeader,type NsvHeader} from "./protocol.js";
 
 const u32=(n:number)=>{const x=new Uint8Array(4);new DataView(x.buffer).setUint32(0,n,true);return x};
@@ -33,5 +33,5 @@ export function decryptFile(container:Uint8Array,password:string):{data:Uint8Arr
   if(total>Number(header.originalSize))throw new Error("Integrity/size verification failed");parts.push(plain);expectedSeq++;
  }
  if(total!==Number(header.originalSize))throw new Error("Integrity/size verification failed");
- return {data:join(parts),header};
+ const originalName=header.nameNonce&&header.nameCiphertext?decryptMetadata(key,header.nameNonce,header.nameCiphertext):header.originalName;\n return {data:join(parts),header:{...header,originalName}};
 }
