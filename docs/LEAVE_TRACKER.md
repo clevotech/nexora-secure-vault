@@ -20,7 +20,7 @@ All requests use POST /leave with the same Bearer-token authentication as the re
 
 Startup applies additive schemas in backend/migrations/003_leave_tracker_audit.sql and backend/migrations/004_leave_holidays.sql. They create employee profiles, leave policies, leave requests, approvals, a notification outbox, reminder idempotency keys, a configurable holiday calendar, and hash-linked audit events. Existing tables are not dropped. Leave days use the employee's configured workweek and recorded holidays. An eligible supervisor or HR/admin approver must exist; the system will not assign the employee as their own approver.
 
-The API uses the verified JWT subject as the actor; clients cannot select another actor for their own leave request. Organization-wide lists and audit queries require HR/admin scopes, and supervisor decisions are checked against the employee's assigned supervisor. Phone numbers must be E.164 formatted. Audit details should never contain passwords, API keys, medical attachment contents, or raw authentication tokens.
+The API uses the verified JWT subject as the actor; clients cannot select another actor for their own leave request. Authenticated API route metadata is also written to the audit log without recording request bodies, prompts, passwords, or generated content. Organization-wide lists and audit queries require HR/admin scopes, and supervisor decisions are checked against the employee's assigned supervisor. Phone numbers must be E.164 formatted. Audit details should never contain passwords, API keys, medical attachment contents, or raw authentication tokens.
 
 ## WhatsApp and automation
 
@@ -28,7 +28,7 @@ The sender process is implemented at backend/src/leave-notification-worker.ts an
 
 Create and approve the six matching WhatsApp Business templates: leave_request_submitted, leave_request_approved, leave_request_rejected, leave_return_3_days, leave_return_1_day, and leave_return_today. Their body placeholders must match the worker mappings. The worker claims queued records safely across instances and retries transient failures with exponential backoff. Delivery-status webhook/signature verification is not implemented yet. Do not announce successful delivery until that provider webhook integration is complete.
 
-Reminder timestamps currently use UTC rather than employee-local 09:00. Timezone-aware scheduling and delivery-status webhook handling remain production tasks. Actual WhatsApp delivery requires valid Meta credentials, approved templates, and a separately deployed worker process.
+Return reminders are scheduled for 09:00 in each employee's validated IANA timezone, including daylight-saving offsets. Delivery-status webhook handling remains a production task. Actual WhatsApp delivery requires valid Meta credentials, approved templates, and a separately deployed worker process.
 
 ## Deployment notes
 
