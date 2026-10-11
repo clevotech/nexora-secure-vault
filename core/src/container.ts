@@ -28,8 +28,10 @@ export function decryptFile(container:Uint8Array,password:string):{data:Uint8Arr
  if(header.version===2){
   if(!header.nameNonce||!header.nameCiphertext)throw new Error("Encrypted metadata is missing");
   try{metadata=JSON.parse(decryptMetadata(key,header.nameNonce,header.nameCiphertext))}catch{throw new Error("Incorrect password or damaged encrypted file");}
-  if(typeof metadata.originalName!=="string"||!metadata.originalName||!Number.isSafeInteger(Number(metadata.originalSize))||Number(metadata.originalSize)<0)throw new Error("Encrypted file metadata is invalid");
-  expectedSize=Number(metadata.originalSize);
+  const restoredMetadata=metadata as {originalName?:string;originalSize?:string;createdAt?:string};
+  if(typeof restoredMetadata.originalName!=="string"||!restoredMetadata.originalName||!Number.isSafeInteger(Number(restoredMetadata.originalSize))||Number(restoredMetadata.originalSize)<0)throw new Error("Encrypted file metadata is invalid");
+  metadata=restoredMetadata;
+  expectedSize=Number(restoredMetadata.originalSize);
  }
  while(o<container.length){
   const seq=readU32(container,o);o+=4;if(seq!==expectedSeq)throw new Error("Invalid chunk sequence");
