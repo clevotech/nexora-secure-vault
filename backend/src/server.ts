@@ -195,7 +195,7 @@ const server=createServer(async(req,res)=>{
     const status=/Authentication required|Invalid development authentication token|Production authentication verifier|Authentication failed|Authenticated token/.test(message)?401:message==="Request too large"?413:400;
     if(pool&&!authenticatedUserId){
       const path=new URL(req.url||"/","http://localhost").pathname;
-      void appendAuditEvent(pool,{actorUserId:"anonymous",action:"api.request.unauthenticated",resourceType:"api_route",resourceId:path,outcome:status===401||status===403?"denied":"failure",details:{method:req.method||"GET",statusCode:status}}).catch(error=>console.error("Nexora audit write failed",error instanceof Error?error.message:"unknown error"));
+      void appendAuditEvent(pool,{actorUserId:"anonymous",action:"api.request.unauthenticated",resourceType:"api_route",resourceId:path,outcome:status===401?"denied":"failure",details:{method:req.method||"GET",statusCode:status}}).catch(error=>console.error("Nexora audit write failed",error instanceof Error?error.message:"unknown error"));
     }
     return send(res,status,{error:message});
   }
