@@ -27,7 +27,7 @@ export async function handleOrganizationApi(pool:Pool|null,auth:AuthContext,raw:
    if(existing.rows[0]){await client.query("ROLLBACK");return fail("This account already belongs to an organization. Ask your Admin Officer to manage your membership.",409);}
    const inserted=await client.query("INSERT INTO nexora_organizations(name,email,phone,website,address,country,industry,registration_number,logo_url,owner_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,organization_code AS \"organizationId\",name,email,phone,website,address,country,industry,registration_number AS \"registrationNumber\",logo_url AS \"logoUrl\",created_at AS \"createdAt\"",[name,email,phone||null,website||null,address||null,country||null,industry||null,registrationNumber||null,logoUrl||null,auth.userId]);
    const org=inserted.rows[0];
-   const member=await client.query("INSERT INTO nexora_organization_members(user_id,organization_id,full_name,email,role,status) VALUES($1,$2,$3,$4,'admin_officer','active') RETURNING user_code AS \"userId\",user_id AS \"authUserId\",full_name AS \"fullName\",email,role,status,created_at AS \"createdAt\"",[auth.userId,org.id,fullName,email]);
+   const member=await client.query("INSERT INTO nexora_organization_members(user_id,organization_id,full_name,email,role,status) VALUES($1,$2,$3,$4,'admin_officer','active') RETURNING user_code AS \"userId\",user_id AS \"authUserId\",full_name AS \"fullName\",email,role,status,created_at AS \"createdAt\"",[auth.userId,org.id,fullName,clean(input.adminEmail,254).toLowerCase()]);
    await client.query("COMMIT");
    await audit(pool,auth,"organization.register","organization",org.id,{organizationCode:org.organizationId,role:"admin_officer"});
    return ok({organization:org,user:member.rows[0]},201);
@@ -38,6 +38,7 @@ export async function handleOrganizationApi(pool:Pool|null,auth:AuthContext,raw:
    return fail("Organization registration could not be completed.",500);
   }finally{client.release();}
  }
+ await pool.query("UPDATE nexora_organization_members SET status='active',updated_at=NOW() WHERE user_id=$1 AND status='invited'",[auth.userId]);
  const membership=await pool.query("SELECT m.organization_id AS \"organizationUuid\",m.organization_id::text AS \"organizationKey\",m.user_code AS \"userId\",m.full_name AS \"fullName\",m.email,m.department,m.job_title AS \"jobTitle\",m.role,m.status,o.organization_code AS \"organizationId\",o.name AS \"organizationName\",o.email AS \"organizationEmail\",o.phone AS \"organizationPhone\",o.website AS \"organizationWebsite\",o.address AS \"organizationAddress\",o.country,o.industry,o.registration_number AS \"registrationNumber\",o.logo_url AS \"logoUrl\" FROM nexora_organization_members m JOIN nexora_organizations o ON o.id=m.organization_id WHERE m.user_id=$1 AND m.status='active' LIMIT 1",[auth.userId]);
  const current=membership.rows[0];
  if(action==="organization.get"){
