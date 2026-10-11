@@ -2,7 +2,7 @@ import type {ChatMessage,ModelSpec,ProviderId,ProviderResult} from "./types.js";
 import {providerEnv} from "./registry.js";
 
 function requireConfig(provider:ProviderId){const cfg=providerEnv(provider);if(!cfg.key)throw new Error(`Provider ${provider} is not configured`);return cfg;}
-function modelName(spec:ModelSpec){if(spec.provider==="google")return "gemini-2.5-flash";return spec.id.split(":").slice(1).join(":");}
+function modelName(spec:ModelSpec){return spec.id.split(":").slice(1).join(":");}
 async function jsonFetch(url:string,init:RequestInit){
   const r=await fetch(url,{...init,headers:{"Content-Type":"application/json",...(init.headers||{})}});
   const data=await r.json().catch(()=>({}));
@@ -32,10 +32,13 @@ async function anthropic(spec:ModelSpec,messages:ChatMessage[]):Promise<Provider
   return {content,provider:"anthropic",model:spec.id};
 }
 async function google(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
-  const {key,base}=requireConfig("google");const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+`/models/${modelName(spec)}:generateContent?key=${encodeURIComponent(key!)}`;
-  const contents=messages.filter(m=>m.role!=="system").map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]}));
-  const data=await jsonFetch(url,{method:"POST",body:JSON.stringify({contents})});
-  const content=data?.candidates?.[0]?.content?.parts?.map((p:{text?:string})=>p.text||"").join("")||"";if(!content)throw new Error("Provider returned no assistant content");
+  const {key,base}=requireConfig("google");
+  const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+"/interactions";
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n\n");
+  const input=messages.filter(m=>m.role!=="system").map(m=>({role:m.role,content:m.content}));
+  const data=await jsonFetch(url,{method:"POST",headers:{"x-goog-api-key":key!},body:JSON.stringify({model:modelName(spec),input,...(system?{system_instruction:system}:{})})});
+  const content=typeof data?.output_text==="string"?data.output_text:(data?.steps||[]).filter((s:{type?:string})=>s.type==="model_output").flatMap((s:{content?:{type?:string,text?:string}[]})=>s.content||[]).filter((x:{type?:string})=>x.type==="text").map((x:{text?:string})=>x.text||"").join("");
+  if(!content)throw new Error(data?.errors?.map((e:{message?:string})=>e.message).filter(Boolean).join("; ")||"Google Interactions API returned no assistant content");
   return {content,provider:"google",model:spec.id};
 }
 export async function callProvider(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
