@@ -1,6 +1,6 @@
 import type {Pool} from "pg";
 import type {AuthContext} from "./auth.js";
-import {appendAuditEvent,expectedResumption,validIsoDate} from "./leave.js";
+import {appendAuditEvent,expectedResumption,localTimeToUtc,validIsoDate} from "./leave.js";
 
 type Result={status:number;body:unknown};
 const ok=(body:unknown,status=200):Result=>({status,body});
@@ -24,11 +24,13 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     if(!userId||!name||name.length>180)return fail("Employee user ID and full name are required.");
     const phone=String(input.whatsappE164||"").trim();
     if(phone&&!/^\+[1-9]\d{7,14}$/.test(phone))return fail("WhatsApp number must use international E.164 format.");
+    const timezone=String(input.timezone||"UTC");
+    try{new Intl.DateTimeFormat("en-US",{timeZone:timezone});}catch{return fail("Timezone must be a valid IANA timezone, such as Africa/Lagos.");}
     const role=["employee","supervisor","hr","admin"].includes(String(input.role))?String(input.role):"employee";
     const workweek=Array.isArray(input.workweekDays)?input.workweekDays.map(Number).filter(n=>Number.isInteger(n)&&n>=1&&n<=7):[1,2,3,4,5];
     const result=await pool.query(
       "INSERT INTO nexora_employees(user_id,employee_number,full_name,email,whatsapp_e164,department,supervisor_user_id,role,workweek_days,timezone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(user_id) DO UPDATE SET employee_number=EXCLUDED.employee_number,full_name=EXCLUDED.full_name,email=EXCLUDED.email,whatsapp_e164=EXCLUDED.whatsapp_e164,department=EXCLUDED.department,supervisor_user_id=EXCLUDED.supervisor_user_id,role=EXCLUDED.role,workweek_days=EXCLUDED.workweek_days,timezone=EXCLUDED.timezone,updated_at=NOW() RETURNING id,user_id AS \"userId\",employee_number AS \"employeeNumber\",full_name AS \"fullName\",email,whatsapp_e164 AS \"whatsappE164\",department,supervisor_user_id AS \"supervisorUserId\",role,workweek_days AS \"workweekDays\",timezone,active",
-      [userId,String(input.employeeNumber||"")||null,name,String(input.email||"")||null,phone||null,String(input.department||"")||null,String(input.supervisorUserId||"")||null,role,workweek.length?workweek:[1,2,3,4,5],String(input.timezone||"UTC")]
+      [userId,String(input.employeeNumber||"")||null,name,String(input.email||"")||null,phone||null,String(input.department||"")||null,String(input.supervisorUserId||"")||null,role,workweek.length?workweek:[1,2,3,4,5],timezone]
     );
     await audit("leave.profile.save","employee",userId,"success",{role});
     return ok({employee:result.rows[0]});
@@ -102,9 +104,10 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
         const tz=String(employee.rows[0]?.timezone||"UTC");
         const reminders=[["leave_return_3_days",3],["leave_return_1_day",1],["leave_return_today",0]] as const;
         for(const [template,daysBefore] of reminders){
-          const date=new Date(String(row.expected_resumption_date).slice(0,10)+"T09:00:00.000Z");
+          const date=new Date(String(row.expected_resumption_date).slice(0,10)+"T00:00:00.000Z");
           date.setUTCDate(date.getUTCDate()-daysBefore);
-          if(date.getTime()>Date.now())await client.query("INSERT INTO nexora_leave_notifications(leave_request_id,recipient_user_id,recipient_phone_e164,template_name,payload,scheduled_at) SELECT $1,user_id,whatsapp_e164,$2,jsonb_build_object('resumptionDate',$3::text,'timezone',$4::text),$5 FROM nexora_employees WHERE user_id=$6 AND whatsapp_e164 IS NOT NULL",[id,template,String(row.expected_resumption_date).slice(0,10),tz,date.toISOString(),row.employee_user_id]);
+          const scheduledAt=localTimeToUtc(date.toISOString().slice(0,10),tz,9);
+          if(scheduledAt.getTime()>Date.now())await client.query("INSERT INTO nexora_leave_notifications(leave_request_id,recipient_user_id,recipient_phone_e164,template_name,payload,scheduled_at) SELECT $1,user_id,whatsapp_e164,$2,jsonb_build_object('resumptionDate',$3::text,'timezone',$4::text),$5 FROM nexora_employees WHERE user_id=$6 AND whatsapp_e164 IS NOT NULL",[id,template,String(row.expected_resumption_date).slice(0,10),tz,scheduledAt.toISOString(),row.employee_user_id]);
         }
       }
       await client.query("COMMIT");
