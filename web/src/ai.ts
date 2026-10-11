@@ -37,7 +37,7 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
    if(piece){content+=piece;onToken?.(content);}
   }
  };
- try{while(true){const {done,value}=await reader.read();buffer+=decoder.decode(value,{stream:!done});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";consume(lines.join("\n"));if(done)break;}if(buffer.trim())consume(buffer);
+ try{while(true){const {done,value}=await reader.read();buffer+=decoder.decode(value,{stream:!done});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";consume(lines.join("\n"));if(done)break;}if(buffer.trim())consume(buffer);}
  finally{reader.releaseLock();}
  if(!content)return aiChat(messages,model,signal);
  return {content};
