@@ -50,7 +50,7 @@ export const saveMemory=(content:string)=>request("/memory",{action:"save",conte
 export const deleteMemory=(id:string)=>request("/memory",{action:"delete",id});
 export const voiceTranscribe=(audioBase64:string)=>request("/voice/transcribe",{audioBase64});
 export const voiceSpeak=(text:string,voice?:string)=>request("/voice/speak",{text,voice});
-export const createJob=(kind:"image"|"video"|"transcription"|"speech",metadata:Record<string,unknown>={},signal?:AbortSignal)=>request("/jobs",{action:"create",kind,metadata},signal);
+export const createJob=(kind:"image"|"video"|"transcription"|"speech"|"music",metadata:Record<string,unknown>={},signal?:AbortSignal)=>request("/jobs",{action:"create",kind,metadata},signal);
 export const getJob=(id:string,signal?:AbortSignal)=>request("/jobs",{action:"get",id},signal);
 export const getAsset=(key:string,signal?:AbortSignal)=>request("/asset",{key},signal);
 export async function waitForJob(id:string,signal?:AbortSignal,timeoutMs=120000,onUpdate?:(status:string)=>void){
