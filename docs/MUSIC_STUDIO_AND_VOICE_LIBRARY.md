@@ -2,14 +2,14 @@
 
 ## User capabilities
 - Music Studio offers song prompts, original lyrics, broad genre selection, mood, BPM, arrangement structure, instrumental-only mode, and requested durations from 30 seconds to 10 minutes.
-- Users may import voice samples up to 5 MB. Samples are saved in the browser's IndexedDB voice library for reuse in video and music sessions on that same browser/device. Users can name and remove imported voices.
+- Users may import voice samples up to 5 MB. Samples are saved in the browser's IndexedDB voice library for reuse in video and music sessions on that same browser/device. Users can name and remove imported voices. In Music Studio, one imported voice can be assigned as lead vocalist and up to eight additional imported voices can be selected as backup singers; a provider must support multi-reference vocal generation to perform distinct vocal roles.
 - Before importing a voice, the UI asks the user to confirm ownership or permission from the speaker.
 - Users may upload a reference track up to 12 MB and must confirm that they own or have permission to use it. A beat-only option instructs the provider to use broad rhythm, tempo, instrumentation, or production guidance while creating a new melody and arrangement.
 - Generated audio is previewable and downloadable when the provider returns an audio asset.
 
 ## Provider setup
 Music generation uses a configurable asynchronous adapter in `backend/src/music.ts`. Configure these backend environment variables on the hosting service:
-- `NEXORA_MUSIC_API_URL`: base URL of a compatible music-generation API. It accepts a POST with JSON fields including `prompt`, `genre`, `durationSeconds`, `bpm`, `mood`, `structure`, `lyrics`, `instrumental`, `voiceReferenceAudio`, `referenceTrackAudio`, and rights confirmation.
+- `NEXORA_MUSIC_API_URL`: base URL of a compatible music-generation API. It accepts a POST with JSON fields including `prompt`, `genre`, `durationSeconds`, `bpm`, `mood`, `structure`, `lyrics`, `instrumental`, `voiceReferenceAudio`, `leadVocalist`, `backupVoiceReferences`, `vocalArrangement`, `referenceTrackAudio`, and rights confirmation.
 - `NEXORA_MUSIC_API_KEY`: optional bearer token if required by the selected provider.
 - `NEXORA_MUSIC_TIMEOUT_MS`: optional generation timeout; defaults to 30 minutes.
 - `NEXORA_MUSIC_POLL_MS`: optional poll interval; defaults to 5 seconds.
