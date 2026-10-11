@@ -15,8 +15,10 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
   const input=raw as Record<string,unknown>;
   const action=String(input.action||"");
   const actor=auth.userId;
-  const audit=async(actionName:string,type:string,id:string|undefined,outcome:"success"|"failure"|"denied",details:Record<string,unknown>={})=>
-    appendAuditEvent(pool,{actorUserId:actor,action:actionName,resourceType:type,resourceId:id,outcome,correlationId,details});
+  const audit=async(actionName:string,type:string,id:string|undefined,outcome:"success"|"failure"|"denied",details:Record<string,unknown>={})=>{
+    try{return await appendAuditEvent(pool,{actorUserId:actor,action:actionName,resourceType:type,resourceId:id,outcome,correlationId,details});}
+    catch(error){console.error("Nexora leave audit write failed",error instanceof Error?error.message:"unknown error");return null;}
+  };
 
   if(action==="profile.save"){
     if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
