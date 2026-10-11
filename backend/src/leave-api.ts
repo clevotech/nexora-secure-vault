@@ -131,6 +131,21 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     return ok({request:result.rows[0]});
   }
 
+  if(action==="calendar.holiday.save"){
+    if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
+    const date=String(input.date||""),name=String(input.name||"").trim().slice(0,180),region=String(input.region||"global").trim().slice(0,80)||"global";
+    if(!validIsoDate(date)||!name)return fail("A valid holiday date and name are required.");
+    await pool.query("INSERT INTO nexora_leave_holidays(holiday_date,name,region,created_by) VALUES($1,$2,$3,$4) ON CONFLICT(holiday_date) DO UPDATE SET name=EXCLUDED.name,region=EXCLUDED.region,created_by=EXCLUDED.created_by",[date,name,region,actor]);
+    await audit("leave.holiday.save","leave_holiday",date,"success",{region});
+    return ok({holiday:{date,name,region}});
+  }
+
+  if(action==="calendar.holiday.list"){
+    if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
+    const result=await pool.query("SELECT holiday_date::text AS date,name,region FROM nexora_leave_holidays WHERE holiday_date >= CURRENT_DATE - 30 ORDER BY holiday_date LIMIT 500");
+    return ok({holidays:result.rows});
+  }
+
   if(action==="audit.list"){
     if(!auth.scopes.has("admin"))return fail("Admin authorization required.",403);
     const limit=Math.max(1,Math.min(200,Number(input.limit)||50));
