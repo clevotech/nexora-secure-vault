@@ -36,7 +36,7 @@ async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
   const model=configuredModel.startsWith("veo-3.1-")?configuredModel:"veo-3.1-generate-preview";
   const apiBase=trimSlash(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta");
   const headers={"Content-Type":"application/json","x-goog-api-key":key};
-  const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[{prompt:input.prompt}],parameters:{aspectRatio:"9:16",durationSeconds}})}));
+  const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[{prompt:input.prompt}],parameters:{aspectRatio:"9:16",durationSeconds:String(durationSeconds)}})}));
   const operationName=String(started.name||started.operation?.name||"");
   if(!operationName)throw new Error("Google Veo returned no operation name");
   const timeout=Date.now()+Math.max(60_000,Number(process.env.NEXORA_VIDEO_TIMEOUT_MS||1_800_000));
