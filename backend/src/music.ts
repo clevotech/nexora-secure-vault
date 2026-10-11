@@ -1,6 +1,6 @@
 export type MusicRequest={
   prompt:string;title?:string;genre?:string;durationSeconds?:number;bpm?:number;mood?:string;structure?:string;
-  lyrics?:string;instrumental?:boolean;beatOnly?:boolean;voiceReferenceAudio?:string;voiceName?:string;
+  lyrics?:string;instrumental?:boolean;beatOnly?:boolean;voiceReferenceAudio?:string;voiceName?:string;leadVocalist?:{name?:string;audio?:string};backupVoiceReferences?:{name:string;audio:string}[];
   referenceTrackAudio?:string;referenceTrackName?:string;referenceRightsConfirmed?:boolean;
 };
 export type MusicResult={audioBase64:string;model?:string;contentType:string};
@@ -19,10 +19,10 @@ export async function generateMusic(input:MusicRequest):Promise<MusicResult>{
   const payload={
     prompt:input.prompt,title:input.title,genre:input.genre,durationSeconds:duration,bpm:input.bpm,mood:input.mood,structure:input.structure,
     lyrics:input.lyrics,instrumental:input.instrumental===true,beatOnly:input.beatOnly===true,
-    voiceReferenceAudio:input.voiceReferenceAudio,voiceName:input.voiceName,
+    voiceReferenceAudio:input.voiceReferenceAudio,voiceName:input.voiceName,leadVocalist:input.leadVocalist,backupVoiceReferences:input.backupVoiceReferences||[],vocalArrangement:{leadVoice:input.leadVocalist?.name||input.voiceName||"provider default",backupVoices:(input.backupVoiceReferences||[]).map(v=>v.name),directions:"Keep the lead clear and centered; use backing voices for harmonies, doubles, ad-libs or call-and-response as musically appropriate. Preserve each authorized voice identity and mix backing vocals below the lead."},
     referenceTrackAudio:input.referenceTrackAudio,referenceTrackName:input.referenceTrackName,
     referenceRightsConfirmed:input.referenceRightsConfirmed===true,
-    instructions:"Create an original composition. If a reference track is supplied and authorized, use it only for high-level rhythm, tempo, instrumentation, arrangement, or production analysis as requested. Do not copy its melody, lyrics, master recording, or a named artist's distinctive voice. Honor the requested genre and duration; return a complete audio file, not a short preview."
+    instructions:"Create an original composition. If a reference track is supplied and authorized, use it only for high-level rhythm, tempo, instrumentation, arrangement, or production analysis as requested. Do not copy its melody, lyrics, master recording, or a named artist's distinctive voice. Honor the requested genre and duration; return a complete audio file, not a short preview. If lead and backup voice references are supplied, use the lead as the primary singer and arrange the supplied backup voices as separate supporting vocal parts; do not collapse all roles into one voice. If the provider cannot support multi-voice references, return an explicit capability error rather than silently ignoring selected voices."
   };
   const created=await parse(await fetch(url,{method:"POST",headers,body:JSON.stringify(payload)}));
   const inline=nestedString(created,"audioBase64","audio_base64");
