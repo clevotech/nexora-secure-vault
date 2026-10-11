@@ -34,6 +34,27 @@ pub fn encrypt_nsv1(input:String, output:String, password:String, file_name:Stri
     dst.flush().map_err(|e|e.to_string())?; Ok(total)
 }
 #[tauri::command]
+pub fn inspect_nsv1_name(input:String,password:String)->Result<String,String>{
+    let mut src=File::open(&input).map_err(|e|e.to_string())?;
+    let mut b=[0u8;4];src.read_exact(&mut b).map_err(|e|e.to_string())?;
+    let hl=u32::from_le_bytes(b) as usize;if hl==0||hl>65536{return Err("Invalid header".into())}
+    let mut hb=vec![0u8;hl];src.read_exact(&mut hb).map_err(|e|e.to_string())?;
+    let h:serde_json::Value=serde_json::from_slice(&hb).map_err(|_|"Invalid header".to_string())?;
+    if h["magic"]!="NSV1"||h["version"]!=1||h["algorithm"]!="AES-256-GCM"||h["kdf"]!="Argon2id"{return Err("Unsupported container".into())}
+    let salt=hex::decode(h["salt"].as_str().ok_or("Invalid salt")?).map_err(|_|"Invalid salt".to_string())?;
+    if salt.len()!=16{return Err("Invalid salt".into())}
+    let key=kdf(&password,&salt)?;
+    if h["nameNonce"].is_string()&&h["nameCiphertext"].is_string(){
+        let nonce=hex::decode(h["nameNonce"].as_str().unwrap()).map_err(|_|"Invalid filename metadata".to_string())?;
+        let ciphertext=hex::decode(h["nameCiphertext"].as_str().unwrap()).map_err(|_|"Invalid filename metadata".to_string())?;
+        if nonce.len()!=NONCE{return Err("Invalid filename nonce".into())}
+        let cipher=Aes256Gcm::new_from_slice(&key).map_err(|e|e.to_string())?;
+        let name=cipher.decrypt(Nonce::from_slice(&nonce),ciphertext.as_ref()).map_err(|_|"Incorrect password or damaged filename metadata".to_string())?;
+        return String::from_utf8(name).map_err(|_|"Invalid encrypted filename".to_string());
+    }
+    h["originalName"].as_str().map(|s|s.to_string()).ok_or_else(||"Invalid filename metadata".into())
+}
+#[tauri::command]
 pub fn decrypt_nsv1(input:String, output:String, password:String)->Result<u64,String>{
     let mut src=File::open(&input).map_err(|e|e.to_string())?;let mut b=[0u8;4];src.read_exact(&mut b).map_err(|e|e.to_string())?;let hl=u32::from_le_bytes(b) as usize;if hl==0||hl>65536{return Err("Invalid header".into())}let mut hb=vec![0u8;hl];src.read_exact(&mut hb).map_err(|e|e.to_string())?;let h:serde_json::Value=serde_json::from_slice(&hb).map_err(|_|"Invalid header".to_string())?;if h["magic"]!="NSV1"||h["version"]!=1||h["algorithm"]!="AES-256-GCM"||h["kdf"]!="Argon2id"{return Err("Unsupported container".into())}let salt=hex::decode(h["salt"].as_str().ok_or("Invalid salt")?).map_err(|_|"Invalid salt".to_string())?;if salt.len()!=16{return Err("Invalid salt".into())}let size=h["originalSize"].as_str().ok_or("Invalid size")?.parse::<u64>().map_err(|_|"Invalid size".to_string())?;let key=kdf(&password,&salt)?;let cipher=Aes256Gcm::new_from_slice(&key).map_err(|e|e.to_string())?;let mut dst=File::create(&output).map_err(|e|e.to_string())?;let mut expected=0u32;let mut total=0u64;
     loop{let n=src.read(&mut b).map_err(|e|e.to_string())?;if n==0{break}if n!=4{return Err("Malformed chunk".into())}let seq=u32::from_le_bytes(b);if seq!=expected{return Err("Invalid chunk sequence".into())}let mut nl=[0u8;1];src.read_exact(&mut nl).map_err(|e|e.to_string())?;if nl[0]!=12{return Err("Invalid nonce".into())}let mut nonce=[0u8;12];src.read_exact(&mut nonce).map_err(|e|e.to_string())?;src.read_exact(&mut b).map_err(|e|e.to_string())?;let clen=u32::from_le_bytes(b) as usize;if clen<16||clen>CHUNK+16{return Err("Invalid ciphertext length".into())}let mut ct=vec![0u8;clen];src.read_exact(&mut ct).map_err(|e|e.to_string())?;let aad=[hb.as_slice(),&seq.to_le_bytes()].concat();let pt=cipher.decrypt(Nonce::from_slice(&nonce),aes_gcm::aead::Payload{msg:&ct,aad:&aad}).map_err(|_|"Authentication failed".to_string())?;total+=pt.len() as u64;if total>size{return Err("Integrity/size verification failed".into())}dst.write_all(&pt).map_err(|e|e.to_string())?;expected+=1}
