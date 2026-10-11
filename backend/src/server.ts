@@ -34,16 +34,16 @@ const server=createServer(async(req,res)=>{
   res.setHeader("Vary","Origin");
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
-  if(req.method==="OPTIONS"){res.statusCode=204;return res.end();}
   if(req.url==="/health" && req.method==="GET"){
     let database:"connected"|"unconfigured"|"unreachable"=pool?"connected":"unconfigured";
     if(pool){try{await pool.query("SELECT 1");}catch{database="unreachable";}}
     const authConfigured=Boolean(process.env.NEXORA_AUTH_ISSUER&&process.env.NEXORA_AUTH_AUDIENCE)&&process.env.NEXORA_DEV_AUTH!=="true";
-    const mediaConfigured=Boolean(process.env.NEXORA_OPENAI_API_KEY);
+    const chatProviderConfigured=Boolean(process.env.NEXORA_GOOGLE_API_KEY||process.env.NEXORA_OPENAI_API_KEY||process.env.NEXORA_ANTHROPIC_API_KEY||process.env.NEXORA_XAI_API_KEY||process.env.NEXORA_DEEPSEEK_API_KEY||process.env.NEXORA_MISTRAL_API_KEY);
+    const mediaConfigured=Boolean(process.env.NEXORA_GOOGLE_API_KEY||process.env.NEXORA_OPENAI_API_KEY);
     const videoConfigured=Boolean(process.env.NEXORA_VIDEO_API_URL);
     const storageConfigured=Boolean(objectStorage);
-    const ready=database==="connected"&&authConfigured&&mediaConfigured&&storageConfigured&&videoConfigured;
-    return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:process.env.NEXORA_EMBED_WORKER==="true"});
+    const ready=database==="connected"&&authConfigured&&chatProviderConfigured&&mediaConfigured&&storageConfigured&&videoConfigured;
+    return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:process.env.NEXORA_EMBED_WORKER==="true"});
   }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
   try{
@@ -129,11 +129,7 @@ async function start(){
   }
   server.listen(port,()=>console.log(`Nexora AI backend listening on :${port}`));
 }
-function shutdown(signal:string){
-  console.log(`Nexora backend received ${signal}`);
-  embeddedWorker?.kill("SIGTERM");
-  server.close(()=>{void pool?.end().finally(()=>process.exit(0));});
-}
+function shutdown(signal:string){console.log(`Nexora backend received ${signal}`);embeddedWorker?.kill("SIGTERM");server.close(()=>{void pool?.end().finally(()=>process.exit(0));});}
 process.on("SIGINT",()=>shutdown("SIGINT"));
 process.on("SIGTERM",()=>shutdown("SIGTERM"));
 start().catch(error=>{console.error("Nexora backend startup failed",error);process.exit(1);});
