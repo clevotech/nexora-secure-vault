@@ -1,7 +1,7 @@
 export type VideoRequest={prompt:string;model?:string;duration?:string;continuity?:boolean;characterConsistency?:boolean;voiceReference?:boolean};
 export type VideoResult={videoBase64:string;model?:string;contentType:string};
 
-const trimSlash=(value:string)=>value.replace(/\\/$/,"");
+const trimSlash=(value:string)=>value.endsWith("/")?value.slice(0,-1):value;
 const base=()=>process.env.NEXORA_VIDEO_API_URL?trimSlash(process.env.NEXORA_VIDEO_API_URL):"";
 const apiKey=()=>process.env.NEXORA_VIDEO_API_KEY||"";
 const parse=async(r:Response)=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||d?.message||`Video provider failed (${r.status})`);return d;};
@@ -30,8 +30,8 @@ async function generateWithConfiguredProvider(input:VideoRequest,url:string):Pro
 async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
   const key=process.env.NEXORA_GOOGLE_API_KEY;
   if(!key)throw new Error("Video generation is not configured. Add a supported video provider or NEXORA_GOOGLE_API_KEY.");
-  const durationMatch=/\\b(4|6|8)\\b/.exec(input.duration||"8");
-  const durationSeconds=Number(durationMatch?.[1]||8);
+  const durationSeconds=Number((input.duration||"8").trim().split(" ")[0]);
+  const durationSeconds=Number((input.duration||"8").trim().split(" ")[0]);
   if(![4,6,8].includes(durationSeconds))throw new Error("Google Veo generates one short clip of up to 8 seconds. Select 4, 6, or 8 seconds, or configure NEXORA_VIDEO_API_URL for a long-form video provider.");
   const model=(process.env.NEXORA_VIDEO_MODEL||"veo-3.1-generate-preview").trim();
   const apiBase=trimSlash(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta");
@@ -42,7 +42,7 @@ async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
   const timeout=Date.now()+Math.max(60_000,Number(process.env.NEXORA_VIDEO_TIMEOUT_MS||1_800_000));
   const poll=Math.max(5000,Number(process.env.NEXORA_VIDEO_POLL_MS||10000));
   while(Date.now()<timeout){
-    const operation=await parse(await fetch(`${apiBase}/${operationName.replace(/^\\//,"")}`,{headers:{"x-goog-api-key":key}}));
+    const operation=await parse(await fetch(`${apiBase}/${operationName.startsWith("/")?operationName.slice(1):operationName}`,{headers:{"x-goog-api-key":key}}));
     if(operation.error)throw new Error(operation.error.message||"Google Veo generation failed");
     if(operation.done===true){
       const response=operation.response||{};
