@@ -22,7 +22,8 @@ export function routeModel(requested="auto",task:Task="chat"){
   }
   const preferred:Task=requested==="reasoning"?"reasoning":requested==="creative"?"chat":requested==="fast"?"chat":task;
   const candidates=modelsForTask(preferred);
-  if(requested==="fast"||(requested==="auto"&&preferred==="chat"))return candidates.find(m=>m.speed==="fast") ?? candidates.find(m=>m.speed==="balanced") ?? candidates[0] ?? MODELS[2];\n  return candidates.find(m=>m.speed==="balanced") ?? candidates.find(m=>m.speed==="fast") ?? candidates[0] ?? MODELS[2];
+  if(requested==="fast"||(requested==="auto"&&preferred==="chat"))return candidates.find(m=>m.speed==="fast") ?? candidates.find(m=>m.speed==="balanced") ?? candidates[0] ?? MODELS[2];
+  return candidates.find(m=>m.speed==="balanced") ?? candidates.find(m=>m.speed==="fast") ?? candidates[0] ?? MODELS[2];
 }
 
 export function providerEnv(provider:ProviderId){

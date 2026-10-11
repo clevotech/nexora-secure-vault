@@ -4,7 +4,9 @@ import {providerEnv} from "./registry.js";
 function requireConfig(provider:ProviderId){const cfg=providerEnv(provider);if(!cfg.key)throw new Error(`Provider ${provider} is not configured`);return cfg;}
 function modelName(spec:ModelSpec){return spec.id.split(":").slice(1).join(":");}
 async function jsonFetch(url:string,init:RequestInit){
-  const timeoutMs=Math.max(5000,Math.min(120000,Number(process.env.NEXORA_PROVIDER_TIMEOUT_MS||30000)));\n  const signal=init.signal||AbortSignal.timeout(timeoutMs);\n  const r=await fetch(url,{...init,signal,headers:{"Content-Type":"application/json",...(init.headers||{})}});
+  const timeoutMs=Math.max(5000,Math.min(120000,Number(process.env.NEXORA_PROVIDER_TIMEOUT_MS||30000)));
+  const signal=init.signal||AbortSignal.timeout(timeoutMs);
+  const r=await fetch(url,{...init,signal,headers:{"Content-Type":"application/json",...(init.headers||{})}});
   const data=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(data?.error?.message||data?.error||data?.message||`Provider request failed (${r.status})`);
   return data;
@@ -26,7 +28,8 @@ async function openAICompatible(spec:ModelSpec,messages:ChatMessage[]):Promise<P
   return {content,provider:spec.provider,model:spec.id};
 }
 async function anthropic(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
-  const {key,base}=requireConfig("anthropic");const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n");
+  const {key,base}=requireConfig("anthropic");const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("
+");
   const data=await jsonFetch((base||"https://api.anthropic.com").replace(/\/$/,"")+"/v1/messages",{method:"POST",headers:{"x-api-key":key!,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:modelName(spec),max_tokens:4096,system,messages:messages.filter(m=>m.role!=="system")})});
   const content=data?.content?.map((x:{type?:string,text?:string})=>x.type==="text"?x.text:"").join("")||"";if(!content)throw new Error("Provider returned no assistant content");
   return {content,provider:"anthropic",model:spec.id};
@@ -34,8 +37,13 @@ async function anthropic(spec:ModelSpec,messages:ChatMessage[]):Promise<Provider
 async function google(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
   const {key,base}=requireConfig("google");
   const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+"/interactions";
-  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n\n");
-  const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]\n${m.content}`).join("\n\n");
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("
+
+");
+  const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]
+${m.content}`).join("
+
+");
   const data=await jsonFetch(url,{method:"POST",headers:{"x-goog-api-key":key!},body:JSON.stringify({model:modelName(spec),input,...(system?{system_instruction:system}:{})})});
   const content=typeof data?.output_text==="string"?data.output_text:(data?.steps||[]).filter((s:{type?:string})=>s.type==="model_output").flatMap((s:{content?:{type?:string,text?:string}[]})=>s.content||[]).filter((x:{type?:string})=>x.type==="text").map((x:{text?:string})=>x.text||"").join("");
   if(!content)throw new Error(data?.errors?.map((e:{message?:string})=>e.message).filter(Boolean).join("; ")||"Google Interactions API returned no assistant content");
