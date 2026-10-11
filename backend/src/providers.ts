@@ -28,8 +28,7 @@ async function openAICompatible(spec:ModelSpec,messages:ChatMessage[]):Promise<P
   return {content,provider:spec.provider,model:spec.id};
 }
 async function anthropic(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
-  const {key,base}=requireConfig("anthropic");const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("
-");
+  const {key,base}=requireConfig("anthropic");const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n");
   const data=await jsonFetch((base||"https://api.anthropic.com").replace(/\/$/,"")+"/v1/messages",{method:"POST",headers:{"x-api-key":key!,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:modelName(spec),max_tokens:4096,system,messages:messages.filter(m=>m.role!=="system")})});
   const content=data?.content?.map((x:{type?:string,text?:string})=>x.type==="text"?x.text:"").join("")||"";if(!content)throw new Error("Provider returned no assistant content");
   return {content,provider:"anthropic",model:spec.id};
@@ -37,9 +36,7 @@ async function anthropic(spec:ModelSpec,messages:ChatMessage[]):Promise<Provider
 async function google(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
   const {key,base}=requireConfig("google");
   const url=(base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+"/interactions";
-  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("
-
-");
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n\n");
   const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]
 ${m.content}`).join("
 
