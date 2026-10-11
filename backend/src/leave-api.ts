@@ -120,7 +120,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
       }
       const comment=String(input.comment||"").trim().slice(0,1000);
       await client.query("UPDATE nexora_leave_requests SET status=$2,updated_at=NOW() WHERE id=$1",[id,decision]);
-      await client.query("UPDATE nexora_leave_approvals SET decision=$2,comment=$3,decided_at=NOW() WHERE leave_request_id=$1 AND decision='pending'",[id,decision,comment||null]);
+      await client.query("UPDATE nexora_leave_approvals SET decision=$2,comment=$3,decided_at=NOW(),approver_user_id=$4 WHERE leave_request_id=$1 AND decision='pending'",[id,decision,comment||null,actor]);
       await client.query("INSERT INTO nexora_leave_notifications(leave_request_id,recipient_user_id,recipient_phone_e164,template_name,payload) SELECT $1,user_id,whatsapp_e164,$2,jsonb_build_object('decision',$3::text,'category',$4::text,'startDate',$5::text,'endDate',$6::text) FROM nexora_employees WHERE user_id=$7 AND whatsapp_e164 IS NOT NULL",[id,decision==="approved"?"leave_request_approved":"leave_request_rejected",decision,row.category,String(row.start_date).slice(0,10),String(row.end_date).slice(0,10),row.employee_user_id]);
       if(decision==="approved"){
         const employee=await client.query("SELECT timezone FROM nexora_employees WHERE user_id=$1",[row.employee_user_id]);
