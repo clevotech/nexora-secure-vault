@@ -5,7 +5,7 @@ export const MAX_HEADER_BYTES=64*1024;
 export const MAX_CHUNK_BYTES=CHUNK_SIZE+16;
 export type NsvHeader={
   magic:"NSV1"; version:1; algorithm:"AES-256-GCM"; kdf:"Argon2id";
-  salt:string; chunkSize:number; originalName:string; originalSize:string;
+  salt:string; chunkSize:number; originalName:string; originalSize:string;\n  nameNonce?:string; nameCiphertext?:string;
   createdAt:string; operationId:string;
 };
 export function encodeHeader(h:NsvHeader):Uint8Array{
@@ -18,7 +18,7 @@ export function decodeHeader(bytes:Uint8Array):NsvHeader{
   if(!/^[0-9a-f]{32}$/i.test(h.salt)) throw new Error("Invalid salt");
   if(h.chunkSize!==CHUNK_SIZE) throw new Error("Invalid chunk size");
   if(!Number.isSafeInteger(Number(h.originalSize))||Number(h.originalSize)<0) throw new Error("Invalid original size");
-  if(typeof h.originalName!=="string"||h.originalName.length===0||h.originalName.length>1024) throw new Error("Invalid original filename");
+  if(typeof h.originalName!=="string"||h.originalName.length===0||h.originalName.length>1024) throw new Error("Invalid original filename");\n  if((h.nameNonce===undefined)!==(h.nameCiphertext===undefined)) throw new Error("Invalid encrypted filename metadata");\n  if(h.nameNonce!==undefined&&(!/^[0-9a-f]{24}$/i.test(h.nameNonce)||typeof h.nameCiphertext!=="string"||!/^[0-9a-f]{2,4096}$/i.test(h.nameCiphertext))) throw new Error("Invalid encrypted filename metadata");
   if(typeof h.operationId!=="string"||h.operationId.length<16) throw new Error("Invalid operation id");
   return h;
 }
