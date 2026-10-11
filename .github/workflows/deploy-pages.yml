@@ -31,7 +31,7 @@ jobs:
         working-directory: web
         env:
           VITE_SUPABASE_URL: https://xctpeafrhfhokgrgwpdr.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_SP59hxu0kWVaYrwGsjNFEA_F_8cFB4k' }}
       - uses: actions/upload-pages-artifact@v4
         with:
           path: web/dist
