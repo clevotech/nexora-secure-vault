@@ -36,7 +36,7 @@ export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE
 export async function transcribe(audioBase64:string,filename="audio.webm"){
   if(!audioBase64||audioBase64.length>35_000_000)throw new Error("Invalid audio payload");
   if(process.env.NEXORA_GOOGLE_API_KEY){
-    const mimeType=/\\.wav$/i.test(filename)?"audio/wav":/\\.mp3$/i.test(filename)?"audio/mpeg":/\\.mp4$/i.test(filename)?"audio/mp4":"audio/webm";
+    const mimeType=/\.wav$/i.test(filename)?"audio/wav":/\.mp3$/i.test(filename)?"audio/mpeg":/\.mp4$/i.test(filename)?"audio/mp4":"audio/webm";
     const model=process.env.NEXORA_TRANSCRIBE_MODEL?.startsWith("gemini-")?process.env.NEXORA_TRANSCRIBE_MODEL:"gemini-3.8-flash";
     const d=await googleInteraction(model,[{type:"text",text:"Transcribe the spoken words in this audio accurately. Return only the transcription, without commentary."},{type:"audio",data:audioBase64,mime_type:mimeType}]);
     const transcript=typeof d?.output_text==="string"?d.output_text:(d?.steps||[]).filter((step:{type?:string})=>step.type==="model_output").flatMap((step:{content?:{type?:string,text?:string}[]})=>step.content||[]).filter((item:{type?:string})=>item.type==="text").map((item:{text?:string})=>item.text||"").join("").trim();
