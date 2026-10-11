@@ -15,6 +15,14 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
   const input=raw as Record<string,unknown>;
   const action=String(input.action||"");
   const actor=auth.userId;
+  const membershipResult=await pool.query("SELECT organization_id AS \"organizationId\",role,status FROM nexora_organization_members WHERE user_id=$1 LIMIT 1",[actor]);
+  const membership=membershipResult.rows[0] as {organizationId:string;role:string;status:string}|undefined;
+  if(!membership||membership.status!=="active")return fail("An active organization membership is required to use Leave Tracker.",403);
+  auth.scopes.delete("admin");auth.scopes.delete("hr");auth.scopes.delete("supervisor");
+  if(membership.role==="admin_officer")auth.scopes.add("admin");
+  if(membership.role==="hr")auth.scopes.add("hr");
+  if(membership.role==="supervisor")auth.scopes.add("supervisor");
+  const organizationId=membership.organizationId;
   const audit=async(actionName:string,type:string,id:string|undefined,outcome:"success"|"failure"|"denied",details:Record<string,unknown>={})=>{
     try{return await appendAuditEvent(pool,{actorUserId:actor,action:actionName,resourceType:type,resourceId:id,outcome,correlationId,details});}
     catch(error){console.error("Nexora leave audit write failed",error instanceof Error?error.message:"unknown error");return null;}
@@ -24,6 +32,8 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
     const userId=String(input.userId||"").trim(),name=String(input.fullName||"").trim();
     if(!userId||!name||name.length>180)return fail("Employee user ID and full name are required.");
+    const targetMember=await pool.query("SELECT 1 FROM nexora_organization_members WHERE user_id=$1 AND organization_id=$2 AND status='active'",[userId,organizationId]);
+    if(!targetMember.rows[0])return fail("You may only manage employees in your own organization.",403);
     const phone=String(input.whatsappE164||"").trim();
     if(phone&&!/^\+[1-9]\d{7,14}$/.test(phone))return fail("WhatsApp number must use international E.164 format.");
     const timezone=String(input.timezone||"UTC");
@@ -33,6 +43,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     const role=requestedRole;
     const supervisorUserId=String(input.supervisorUserId||"").trim();
     if(supervisorUserId&&supervisorUserId===userId)return fail("An employee cannot be their own supervisor.");
+    if(supervisorUserId){const supervisor=await pool.query("SELECT 1 FROM nexora_organization_members WHERE user_id=$1 AND organization_id=$2 AND status='active'",[supervisorUserId,organizationId]);if(!supervisor.rows[0])return fail("The supervisor must belong to your organization.",403);}
     const workweek=Array.isArray(input.workweekDays)?input.workweekDays.map(Number).filter(n=>Number.isInteger(n)&&n>=1&&n<=7):[1,2,3,4,5];
     const result=await pool.query(
       "INSERT INTO nexora_employees(user_id,employee_number,full_name,email,whatsapp_e164,department,supervisor_user_id,role,workweek_days,timezone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(user_id) DO UPDATE SET employee_number=EXCLUDED.employee_number,full_name=EXCLUDED.full_name,email=EXCLUDED.email,whatsapp_e164=EXCLUDED.whatsapp_e164,department=EXCLUDED.department,supervisor_user_id=EXCLUDED.supervisor_user_id,role=EXCLUDED.role,workweek_days=EXCLUDED.workweek_days,timezone=EXCLUDED.timezone,updated_at=NOW() RETURNING id,user_id AS \"userId\",employee_number AS \"employeeNumber\",full_name AS \"fullName\",email,whatsapp_e164 AS \"whatsappE164\",department,supervisor_user_id AS \"supervisorUserId\",role,workweek_days AS \"workweekDays\",timezone,active",
@@ -44,7 +55,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
 
   if(action==="profile.list"){
     if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
-    const result=await pool.query("SELECT id,user_id AS \"userId\",employee_number AS \"employeeNumber\",full_name AS \"fullName\",email,whatsapp_e164 AS \"whatsappE164\",department,supervisor_user_id AS \"supervisorUserId\",role,workweek_days AS \"workweekDays\",timezone,active FROM nexora_employees ORDER BY full_name LIMIT 500");
+    const result=await pool.query("SELECT e.id,e.user_id AS \"userId\",e.employee_number AS \"employeeNumber\",e.full_name AS \"fullName\",e.email,e.whatsapp_e164 AS \"whatsappE164\",e.department,e.supervisor_user_id AS \"supervisorUserId\",e.role,e.workweek_days AS \"workweekDays\",e.timezone,e.active FROM nexora_employees e JOIN nexora_organization_members m ON m.user_id=e.user_id WHERE m.organization_id=$1 AND m.status='active' ORDER BY e.full_name LIMIT 500",[organizationId]);
     await audit("leave.profile.list","employee",undefined,"success",{count:result.rowCount});
     return ok({employees:result.rows});
   }
@@ -55,7 +66,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     if(!validIsoDate(start)||!validIsoDate(end)||end<start)return fail("Enter valid leave dates; the end date cannot precede the start date.");
     const reason=String(input.reason||"").trim();
     if(reason.length>2000)return fail("Reason is too long.");
-    const employee=await pool.query("SELECT workweek_days AS \"workweekDays\",timezone,active FROM nexora_employees WHERE user_id=$1",[actor]);
+    const employee=await pool.query("SELECT e.workweek_days AS \"workweekDays\",e.timezone,e.active FROM nexora_employees e JOIN nexora_organization_members m ON m.user_id=e.user_id AND m.organization_id=$2 AND m.status='active' WHERE e.user_id=$1",[actor,organizationId]);
     if(!employee.rows[0]||!employee.rows[0].active)return fail("An active employee profile is required before applying for leave.",403);
     const workweek=(employee.rows[0].workweekDays||[1,2,3,4,5]).map(Number);
     const holidayResult=await pool.query("SELECT holiday_date::text AS date FROM nexora_leave_holidays WHERE holiday_date>=$1::date AND holiday_date<=$2::date ORDER BY holiday_date",[start,new Date(Date.parse(end+"T00:00:00Z")+370*86400000).toISOString().slice(0,10)]);
@@ -83,8 +94,8 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     const id=String(input.id||"").trim();
     if(!id)return fail("A leave request ID is required.");
     const result=await pool.query(
-      "SELECT r.id,r.employee_user_id AS \"employeeUserId\",e.employee_number AS \"employeeId\",e.full_name AS \"employeeName\",e.employee_number AS \"employeeNumber\",e.department,e.email,e.role AS \"employeeRole\",r.category,r.start_date::text AS \"startDate\",r.end_date::text AS \"endDate\",r.expected_resumption_date::text AS \"expectedResumptionDate\",r.requested_days AS \"requestedDays\",r.status,r.created_at AS \"requestedAt\",a.decided_at AS \"approvedAt\",a.approver_user_id AS \"approverUserId\",approver.full_name AS \"approverName\",a.comment AS \"approvalComment\" FROM nexora_leave_requests r JOIN nexora_employees e ON e.user_id=r.employee_user_id LEFT JOIN LATERAL (SELECT * FROM nexora_leave_approvals WHERE leave_request_id=r.id AND decision='approved' ORDER BY decided_at DESC NULLS LAST LIMIT 1) a ON TRUE LEFT JOIN nexora_employees approver ON approver.user_id=a.approver_user_id WHERE r.id=$1 LIMIT 1",
-      [id]
+      "SELECT r.id,r.employee_user_id AS \"employeeUserId\",e.employee_number AS \"employeeId\",e.full_name AS \"employeeName\",e.employee_number AS \"employeeNumber\",e.department,e.email,e.role AS \"employeeRole\",r.category,r.start_date::text AS \"startDate\",r.end_date::text AS \"endDate\",r.expected_resumption_date::text AS \"expectedResumptionDate\",r.requested_days AS \"requestedDays\",r.status,r.created_at AS \"requestedAt\",a.decided_at AS \"approvedAt\",a.approver_user_id AS \"approverUserId\",approver.full_name AS \"approverName\",a.comment AS \"approvalComment\" FROM nexora_leave_requests r JOIN nexora_organization_members m ON m.user_id=r.employee_user_id AND m.organization_id=$2 AND m.status='active' JOIN nexora_employees e ON e.user_id=r.employee_user_id LEFT JOIN LATERAL (SELECT * FROM nexora_leave_approvals WHERE leave_request_id=r.id AND decision='approved' ORDER BY decided_at DESC NULLS LAST LIMIT 1) a ON TRUE LEFT JOIN nexora_employees approver ON approver.user_id=a.approver_user_id WHERE r.id=$1 LIMIT 1",
+      [id,organizationId]
     );
     const certificate=result.rows[0];
     if(!certificate)return fail("Leave request not found or employee profile unavailable.",404);
@@ -97,7 +108,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
   if(action==="request.list"){
     const admin=isAdmin(auth);
     const result=admin
-      ?await pool.query("SELECT r.id,r.employee_user_id AS \"employeeUserId\",e.employee_number AS \"employeeId\",e.full_name AS \"employeeName\",e.department,r.category,r.start_date AS \"startDate\",r.end_date AS \"endDate\",r.expected_resumption_date AS \"expectedResumptionDate\",r.actual_resumption_at AS \"actualResumptionAt\",r.status,r.reason,r.created_at AS \"createdAt\" FROM nexora_leave_requests r LEFT JOIN nexora_employees e ON e.user_id=r.employee_user_id ORDER BY r.created_at DESC LIMIT 500")
+      ?await pool.query("SELECT r.id,r.employee_user_id AS \"employeeUserId\",e.employee_number AS \"employeeId\",e.full_name AS \"employeeName\",e.department,r.category,r.start_date AS \"startDate\",r.end_date AS \"endDate\",r.expected_resumption_date AS \"expectedResumptionDate\",r.actual_resumption_at AS \"actualResumptionAt\",r.status,r.reason,r.created_at AS \"createdAt\" FROM nexora_leave_requests r JOIN nexora_organization_members m ON m.user_id=r.employee_user_id AND m.organization_id=$1 AND m.status='active' LEFT JOIN nexora_employees e ON e.user_id=r.employee_user_id ORDER BY r.created_at DESC LIMIT 500",[organizationId])
       :await pool.query("SELECT r.id,r.employee_user_id AS \"employeeUserId\",e.employee_number AS \"employeeId\",r.category,r.start_date AS \"startDate\",r.end_date AS \"endDate\",r.expected_resumption_date AS \"expectedResumptionDate\",r.actual_resumption_at AS \"actualResumptionAt\",r.status,r.reason,r.created_at AS \"createdAt\" FROM nexora_leave_requests r LEFT JOIN nexora_employees e ON e.user_id=r.employee_user_id WHERE r.employee_user_id=$1 ORDER BY r.created_at DESC LIMIT 200",[actor]);
     await audit("leave.request.list","leave_request",undefined,"success",{count:result.rowCount,scope:admin?"all":"self"});
     return ok({requests:result.rows});
@@ -110,12 +121,12 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     const client=await pool.connect();
     try{
       await client.query("BEGIN");
-      const found=await client.query("SELECT * FROM nexora_leave_requests WHERE id=$1 FOR UPDATE",[id]);
+      const found=await client.query("SELECT r.* FROM nexora_leave_requests r JOIN nexora_organization_members m ON m.user_id=r.employee_user_id AND m.organization_id=$2 AND m.status='active' WHERE r.id=$1 FOR UPDATE OF r",[id,organizationId]);
       const row=found.rows[0];
       if(!row){await client.query("ROLLBACK");return fail("Leave request not found.",404);}
       if(row.status!=="pending"){await client.query("ROLLBACK");return fail("Only pending leave requests can be decided.",409);}
       if(!isAdmin(auth)){
-        const assigned=await client.query("SELECT 1 FROM nexora_employees WHERE user_id=$1 AND supervisor_user_id=$2",[row.employee_user_id,actor]);
+        const assigned=await client.query("SELECT 1 FROM nexora_employees e JOIN nexora_organization_members m ON m.user_id=e.user_id AND m.organization_id=$3 AND m.status='active' WHERE e.user_id=$1 AND e.supervisor_user_id=$2",[row.employee_user_id,actor,organizationId]);
         if(!assigned.rows[0]){await client.query("ROLLBACK");await audit("leave.request.decide","leave_request",id,"denied",{decision});return fail("You are not the assigned supervisor for this employee.",403);}
       }
       const comment=String(input.comment||"").trim().slice(0,1000);
@@ -175,7 +186,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
   if(action==="audit.list"){
     if(!auth.scopes.has("admin"))return fail("Admin authorization required.",403);
     const limit=Math.max(1,Math.min(200,Number(input.limit)||50));
-    const result=await pool.query("SELECT event_id AS \"eventId\",actor_user_id AS \"actorUserId\",action,resource_type AS \"resourceType\",resource_id AS \"resourceId\",outcome,correlation_id AS \"correlationId\",details,previous_hash AS \"previousHash\",event_hash AS \"eventHash\",created_at AS \"createdAt\" FROM nexora_audit_events ORDER BY id DESC LIMIT $1",[limit]);
+    const result=await pool.query("SELECT a.event_id AS \"eventId\",a.actor_user_id AS \"actorUserId\",a.action,a.resource_type AS \"resourceType\",a.resource_id AS \"resourceId\",a.outcome,a.correlation_id AS \"correlationId\",a.details,a.previous_hash AS \"previousHash\",a.event_hash AS \"eventHash\",a.created_at AS \"createdAt\" FROM nexora_audit_events a JOIN nexora_organization_members m ON m.user_id=a.actor_user_id AND m.organization_id=$2 AND m.status='active' ORDER BY a.id DESC LIMIT $1",[limit,organizationId]);
     return ok({events:result.rows});
   }
   return fail("Unknown Leave Tracker action.",404);
