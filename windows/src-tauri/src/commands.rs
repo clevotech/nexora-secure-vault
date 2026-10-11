@@ -39,9 +39,9 @@ fn header_json(salt:&[u8],key:&[u8;32],name:&str,size:u64,created:&str,id:&str)-
     let cipher=Aes256Gcm::new_from_slice(key).map_err(|e|e.to_string())?;
     let mut name_nonce=[0u8;NONCE];rand::rng().fill_bytes(&mut name_nonce);
     let safe_name=name.replace(['\\','/'],"_");
-    let metadata=serde_json::to_vec(&serde_json::json!({"originalName":safe_name,"originalSize":size.to_string(),"createdAt":created}));
+    let metadata=serde_json::to_vec(&serde_json::json!({"originalName":safe_name}));
     let name_ciphertext=cipher.encrypt(Nonce::from_slice(&name_nonce),metadata.as_slice()).map_err(|_|"Metadata encryption failed".to_string())?;
-    Ok(serde_json::to_vec(&serde_json::json!({"magic":"NSV1","version":2,"algorithm":"AES-256-GCM","kdf":"Argon2id","salt":hex::encode(salt),"chunkSize":CHUNK,"originalName":"Encrypted file","nameNonce":hex::encode(name_nonce),"nameCiphertext":hex::encode(name_ciphertext),"originalSize":"0","createdAt":"hidden","operationId":id})).unwrap())
+    Ok(serde_json::to_vec(&serde_json::json!({"magic":"NSV1","version":2,"algorithm":"AES-256-GCM","kdf":"Argon2id","salt":hex::encode(salt),"chunkSize":CHUNK,"originalName":"Encrypted file","nameNonce":hex::encode(name_nonce),"nameCiphertext":hex::encode(name_ciphertext),"originalSize":size.to_string(),"createdAt":created,"operationId":id})).unwrap())
 }
 #[tauri::command]
 pub fn encrypt_nsv1(input:String,output:String,password:String,file_name:String,created_at:String,operation_id:String)->Result<u64,String>{
@@ -88,11 +88,7 @@ pub fn inspect_nsv1_name(input:String,password:String)->Result<String,String>{
 pub fn decrypt_nsv1(input:String,output:String,password:String)->Result<u64,String>{
     let mut src=File::open(&input).map_err(|e|e.to_string())?;
     let (hb,h)=read_header(&mut src)?;let salt=salt_from_header(&h)?;let key=kdf(&password,&salt)?;
-    let size=if h["version"]==2{
-        private_metadata(&h,&key)?["originalSize"].as_str().ok_or("Invalid size")?.parse::<u64>().map_err(|_|"Invalid size".to_string())?
-    }else{
-        h["originalSize"].as_str().ok_or("Invalid size")?.parse::<u64>().map_err(|_|"Invalid size".to_string())?
-    };
+    let size=h["originalSize"].as_str().ok_or("Invalid size")?.parse::<u64>().map_err(|_|"Invalid size".to_string())?;
     let cipher=Aes256Gcm::new_from_slice(&key).map_err(|e|e.to_string())?;
     let mut dst=File::create(&output).map_err(|e|e.to_string())?;
     let mut b=[0u8;4];let mut expected=0u32;let mut total=0u64;
