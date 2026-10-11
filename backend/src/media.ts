@@ -1,41 +1,63 @@
 const OPENAI="https://api.openai.com/v1";
-function key(){const k=process.env.NEXORA_OPENAI_API_KEY;if(!k)throw new Error("OpenAI media provider is not configured");return k;}
+const GOOGLE_DEFAULT="https://generativelanguage.googleapis.com/v1beta";
+function openAIKey(){const k=process.env.NEXORA_OPENAI_API_KEY;if(!k)throw new Error("No media provider configured. Set NEXORA_GOOGLE_API_KEY or NEXORA_OPENAI_API_KEY.");return k;}
+function googleConfig(){const key=process.env.NEXORA_GOOGLE_API_KEY;if(!key)throw new Error("Google Gemini media provider is not configured");return {key,base:(process.env.NEXORA_GOOGLE_BASE_URL||GOOGLE_DEFAULT).replace(/\/$/,"")};}
 async function parse(r:Response){const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||d?.message||`Media provider failed (${r.status})`);return d;}
+async function googleGenerate(model:string,contents:unknown,generationConfig?:unknown){
+  const {key,base}=googleConfig();
+  const r=await fetch(`${base}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents,...(generationConfig?{generationConfig}:{})})});
+  return parse(r);
+}
+function pcmToWav(pcm:Buffer,sampleRate=24000,channels=1){
+  const header=Buffer.alloc(44);header.write("RIFF",0);header.writeUInt32LE(36+pcm.length,4);header.write("WAVE",8);header.write("fmt ",12);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(channels,22);header.writeUInt32LE(sampleRate,24);header.writeUInt32LE(sampleRate*channels*2,28);header.writeUInt16LE(channels*2,32);header.writeUInt16LE(16,34);header.write("data",36);header.writeUInt32LE(pcm.length,40);return Buffer.concat([header,pcm]);
+}
 
 export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gemini-2.5-flash-image"){
   if(!prompt||prompt.length>32000)throw new Error("Invalid image prompt");
   const googleKey=process.env.NEXORA_GOOGLE_API_KEY;
   if(googleKey){
     const selected=model.startsWith("gemini-")?model:"gemini-2.5-flash-image";
-    const base=(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"");
-    const r=await fetch(`${base}/models/${selected}:generateContent?key=${encodeURIComponent(googleKey)}`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"]}})
-    });
-    const d=await parse(r);
+    const d=await googleGenerate(selected,[{role:"user",parts:[{text:prompt}]}],{responseModalities:["TEXT","IMAGE"]});
     const parts=d?.candidates?.[0]?.content?.parts||[];
     const item=parts.find((p:{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}})=>Boolean(p.inlineData?.data||p.inline_data?.data));
     const imageData=item?.inlineData?.data||item?.inline_data?.data;
     if(imageData)return {model:selected,imageBase64:imageData,mimeType:item?.inlineData?.mimeType||item?.inline_data?.mime_type||"image/png",provider:"google"};
-    throw new Error("Gemini returned no image. Check that image generation is enabled for your API key and model.");
+    throw new Error("Gemini returned no image. Check API access and image-generation quota for gemini-2.5-flash-image.");
   }
-  const r=await fetch(`${OPENAI}/images/generations`,{method:"POST",headers:{Authorization:`Bearer ${key()}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt})});
-  const d=await parse(r);const item=d?.data?.[0];if(!item?.b64_json)throw new Error("Image provider returned no image data");
-  return {model,imageBase64:item.b64_json,provider:"openai"};
+  const r=await fetch(`${OPENAI}/images/generations`,{method:"POST",headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt})});
+  const d=await parse(r);const item=d?.data?.[0];if(!item?.b64_json)throw new Error("Image provider returned no image data");return {model,imageBase64:item.b64_json,provider:"openai"};
 }
 
 export async function transcribe(audioBase64:string,filename="audio.webm"){
   if(!audioBase64||audioBase64.length>35_000_000)throw new Error("Invalid audio payload");
+  if(process.env.NEXORA_GOOGLE_API_KEY){
+    const mimeType=/\.wav$/i.test(filename)?"audio/wav":/\.mp3$/i.test(filename)?"audio/mpeg":/\.mp4$/i.test(filename)?"audio/mp4":"audio/webm";
+    const d=await googleGenerate(process.env.NEXORA_TRANSCRIBE_MODEL?.startsWith("gemini-")?process.env.NEXORA_TRANSCRIBE_MODEL:"gemini-2.5-flash",[{role:"user",parts:[{text:"Transcribe the spoken words in this audio accurately. Return only the transcription, without commentary."},{inlineData:{mimeType,data:audioBase64}}]}]);
+    const text=d?.candidates?.[0]?.content?.parts?.map((p:{text?:string})=>p.text||"").join("").trim();
+    if(!text)throw new Error("Gemini returned no transcription. Check audio format and Google API quota.");
+    return {text,model:"gemini-2.5-flash",provider:"google"};
+  }
   const bytes=Buffer.from(audioBase64,"base64");const form=new FormData();
   form.append("file",new Blob([bytes],{type:"audio/webm"}),filename);form.append("model",process.env.NEXORA_TRANSCRIBE_MODEL||"gpt-transcribe");
-  const r=await fetch(`${OPENAI}/audio/transcriptions`,{method:"POST",headers:{Authorization:`Bearer ${key()}`},body:form});
-  const d=await parse(r);if(typeof d?.text!=="string")throw new Error("Transcription provider returned no text");return {text:d.text,model:process.env.NEXORA_TRANSCRIBE_MODEL||"gpt-transcribe"};
+  const r=await fetch(`${OPENAI}/audio/transcriptions`,{method:"POST",headers:{Authorization:`Bearer ${openAIKey()}`},body:form});
+  const d=await parse(r);if(typeof d?.text!=="string")throw new Error("Transcription provider returned no text");return {text:d.text,model:process.env.NEXORA_TRANSCRIBE_MODEL||"gpt-transcribe",provider:"openai"};
 }
 
-export async function speak(input:string,voice=process.env.NEXORA_TTS_VOICE||"marin"){
+export async function speak(input:string,voice=process.env.NEXORA_TTS_VOICE||"Kore"){
   if(!input||input.length>4096)throw new Error("Invalid speech input");
-  const r=await fetch(`${OPENAI}/audio/speech`,{method:"POST",headers:{Authorization:`Bearer ${key()}`,"Content-Type":"application/json"},body:JSON.stringify({model:process.env.NEXORA_TTS_MODEL||"gpt-4o-mini-tts",voice,input,response_format:"mp3"})});
+  if(process.env.NEXORA_GOOGLE_API_KEY){
+    const model=process.env.NEXORA_TTS_MODEL?.startsWith("gemini-")?process.env.NEXORA_TTS_MODEL:"gemini-2.5-flash-preview-tts";
+    const d=await googleGenerate(model,[{role:"user",parts:[{text:input}]}],{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}});
+    const parts=d?.candidates?.[0]?.content?.parts||[];
+    const item=parts.find((p:{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}})=>Boolean(p.inlineData?.data||p.inline_data?.data));
+    const encoded=item?.inlineData?.data||item?.inline_data?.data;
+    if(!encoded)throw new Error("Gemini returned no speech audio. Check TTS model access and Google API quota.");
+    const mime=item?.inlineData?.mimeType||item?.inline_data?.mime_type||"audio/L16;rate=24000";
+    const wav=pcmToWav(Buffer.from(encoded,"base64"),Number(/rate=(\d+)/i.exec(mime)?.[1]||24000));
+    return {audioBase64:wav.toString("base64"),model,format:"wav",mimeType:"audio/wav",provider:"google"};
+  }
+  const model=process.env.NEXORA_TTS_MODEL||"gpt-4o-mini-tts";
+  const r=await fetch(`${OPENAI}/audio/speech`,{method:"POST",headers:{Authorization:`Bearer ${openAIKey()}`,"Content-Type":"application/json"},body:JSON.stringify({model,voice,input,response_format:"mp3"})});
   if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d?.error?.message||`Speech provider failed (${r.status})`);}
-  return {audioBase64:Buffer.from(await r.arrayBuffer()).toString("base64"),model:process.env.NEXORA_TTS_MODEL||"gpt-4o-mini-tts",format:"mp3"};
+  return {audioBase64:Buffer.from(await r.arrayBuffer()).toString("base64"),model,format:"mp3",mimeType:"audio/mpeg",provider:"openai"};
 }
