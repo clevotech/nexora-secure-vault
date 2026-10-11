@@ -22,10 +22,19 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
     })]
     .filter((m,i,a)=>eligible(m)&&a.findIndex(x=>x.id===m.id)===i);
   let last:unknown;
+  let timedOut=false;
   for(const spec of candidates){
     try{return await callProvider(spec,input.messages);}
-    catch(error){if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new Error("AI provider timed out while generating your website. Try a shorter brief or retry; the request has been stopped rather than waiting through multiple provider timeouts.");last=error;}
+    catch(error){
+      last=error;
+      if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError")){
+        timedOut=true;
+        // Try the next configured provider/model rather than failing on the first timeout.
+        continue;
+      }
+    }
   }
+  if(timedOut)throw new Error("All available AI providers timed out. Try a shorter brief, check provider quota/status, or configure another provider in Render.");
   throw last instanceof Error?last:new Error("No configured AI provider is available. Configure NEXORA_GOOGLE_API_KEY or another supported provider.");
 }
 
