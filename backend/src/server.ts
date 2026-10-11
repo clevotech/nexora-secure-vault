@@ -8,6 +8,7 @@ import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
 import {handleLeaveApi} from "./leave-api.js";
 import {handleOrganizationApi} from "./organization-api.js";
+import {employeeIdLogin} from "./employee-id-login.js";
 import {appendAuditEvent} from "./leave.js";
 import {handleWhatsAppWebhook} from "./whatsapp-webhook.js";
 
@@ -52,6 +53,10 @@ const server=createServer(async(req,res)=>{
     return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:Boolean(pool)&&process.env.NEXORA_EMBED_WORKER!=="false"});
   }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
+  if(req.url==="/auth/employee-login"){
+    try{const input=await body(req,10_000);const result=await employeeIdLogin(pool,input,req.socket.remoteAddress||"unknown");return send(res,result.status,result.body);}
+    catch(error){return send(res,400,{error:error instanceof Error?error.message:"Invalid sign-in request"});}
+  }
   let authenticatedUserId:string|undefined;
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
