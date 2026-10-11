@@ -27,7 +27,7 @@ object NsvContainer {
     }
     private fun headerBytes(salt: ByteArray, key: ByteArray, name: String, size: Long, created: String, operationId: String): ByteArray {
         val metadata = JSONObject()
-        metadata.put("originalName", name.replace('\\\\', '_').replace('/', '_').take(1024).ifEmpty { "file" })
+        metadata.put("originalName", name.replace('\\', '_').replace('/', '_').take(1024).ifEmpty { "file" })
         val nonce = NsvCrypto.newNonce()
         val encrypted = NsvCrypto.encryptMetadata(key, metadata.toString().toByteArray(Charsets.UTF_8), nonce)
         val h = JSONObject()
