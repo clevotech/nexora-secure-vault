@@ -74,3 +74,66 @@ export async function callProvider(spec:ModelSpec,messages:ChatMessage[]):Promis
   if(spec.provider==="google")return google(spec,messages).then(cleanResult);
   return openAICompatible(spec,messages).then(cleanResult);
 }
+
+
+/** Stream model deltas to the authenticated API client when the provider supports SSE. */
+export async function callProviderStream(spec:ModelSpec,messages:ChatMessage[],onToken:(delta:string)=>void):Promise<ProviderResult>{
+ const cfg=requireConfig(spec.provider);
+ const model=modelName(spec);
+ let url="",headers:Record<string,string>={},payload:Record<string,unknown>={};
+ if(spec.provider==="openai"){
+  url=(cfg.base||"https://api.openai.com/v1").replace(/\\/$/,"")+"/responses";
+  headers={Authorization:"Bearer "+cfg.key};
+  payload={model,input:messages.map(m=>({role:m.role,content:m.content})),stream:true};
+ }else if(spec.provider==="anthropic"){
+  url=(cfg.base||"https://api.anthropic.com").replace(/\\/$/,"")+"/v1/messages";
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\\n");
+  headers={"x-api-key":cfg.key!,"anthropic-version":"2023-06-01"};
+  payload={model,max_tokens:4096,system,messages:messages.filter(m=>m.role!=="system"),stream:true};
+ }else if(spec.provider==="google"){
+  url=(cfg.base||"https://generativelanguage.googleapis.com/v1beta").replace(/\\/$/,"")+"/interactions";
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\\n\\n");
+  const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]\\n${m.content}`).join("\\n\\n");
+  headers={"x-goog-api-key":cfg.key!};
+  payload={model,input,stream:true,...(system?{system_instruction:system}:{})};
+ }else{
+  url=(cfg.base||defaultBase(spec.provider)).replace(/\\/$/,"")+"/chat/completions";
+  headers={Authorization:"Bearer "+cfg.key};
+  payload={model,messages,stream:true};
+ }
+ const timeoutMs=Math.max(5000,Math.min(120000,Number(process.env.NEXORA_PROVIDER_TIMEOUT_MS||30000)));
+ const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json",Accept:"text/event-stream",...headers},body:JSON.stringify(payload),signal:AbortSignal.timeout(timeoutMs)});
+ if(!response.ok){const detail=await response.text().catch(()=>"");throw new Error(detail.slice(0,500)||`Streaming provider request failed (${response.status})`);}
+ if(!response.body||!(response.headers.get("content-type")||"").includes("text/event-stream")){
+  throw new Error("Provider did not return a streaming response");
+ }
+ const reader=response.body.getReader(),decoder=new TextDecoder();
+ let buffer="",full="";
+ const emit=(block:string)=>{
+  const data=block.split(/\\r?\\n/).filter(line=>line.startsWith("data:")).map(line=>line.slice(5).trim()).join("\\n");
+  if(!data||data==="[DONE]")return;
+  let item:Record<string,any>;
+  try{item=JSON.parse(data)}catch{return;}
+  if(item.error)throw new Error(typeof item.error==="string"?item.error:JSON.stringify(item.error));
+  let delta="";
+  if(spec.provider==="openai")delta=typeof item.delta==="string"?item.delta:(typeof item.delta?.text==="string"?item.delta.text:"");
+  else if(spec.provider==="anthropic")delta=item.type==="content_block_delta"&&item.delta?.type==="text_delta"?String(item.delta.text||""):"";
+  else if(spec.provider==="google"){
+   const candidate=item.delta??item.content_delta??item.text_delta??item;
+   delta=typeof candidate==="string"?candidate:typeof candidate?.text==="string"?candidate.text:typeof candidate?.content==="string"?candidate.content:typeof candidate?.delta==="string"?candidate.delta:"";
+  }else delta=typeof item.choices?.[0]?.delta?.content==="string"?item.choices[0].delta.content:"";
+  if(delta){full+=delta;onToken(delta);}
+ };
+ try{
+  while(true){
+   const {done,value}=await reader.read();
+   buffer+=decoder.decode(value,{stream:!done});
+   const blocks=buffer.split(/\\r?\\n\\r?\\n/);buffer=blocks.pop()||"";
+   for(const block of blocks)emit(block);
+   if(done)break;
+  }
+  if(buffer.trim())emit(buffer);
+ }finally{reader.releaseLock();}
+ if(!full.trim())throw new Error("Provider stream returned no text");
+ return cleanResult({content:full,provider:spec.provider,model:spec.id});
+}
