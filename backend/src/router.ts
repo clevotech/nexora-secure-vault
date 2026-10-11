@@ -9,7 +9,7 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   // When Gemini is configured, never fall back to OpenAI: an OpenAI quota error
   // must not hide a Google configuration/model/quota error.
   const eligible=(spec:typeof MODELS[number])=>configured(spec)&&(!googleConfigured||spec.provider!=="openai");
-  const candidates=[primary,...MODELS
+  const ranked=[primary,...MODELS
     .filter(eligible)
     .sort((a,b)=>{
       const task=input.task||"chat";
@@ -21,6 +21,9 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
       return a.speed==="fast"?-1:b.speed==="fast"?1:0;
     })]
     .filter((m,i,a)=>eligible(m)&&a.findIndex(x=>x.id===m.id)===i);
+  // One model per provider and no more than three providers per request. This
+  // keeps fallback useful without making a failed request wait for every model.
+  const candidates=ranked.filter((spec,index,array)=>array.findIndex(x=>x.provider===spec.provider)===index).slice(0,3);
   let last:unknown;
   let timedOut=false;
   for(const spec of candidates){
