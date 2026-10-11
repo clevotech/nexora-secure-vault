@@ -7,6 +7,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::encrypt_nsv1,
+            commands::inspect_nsv1_name,
             commands::decrypt_nsv1
         ])
         .run(tauri::generate_context!())
