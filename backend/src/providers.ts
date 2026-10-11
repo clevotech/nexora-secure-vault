@@ -83,22 +83,22 @@ export async function callProviderStream(spec:ModelSpec,messages:ChatMessage[],o
  const model=modelName(spec);
  let url="",headers:Record<string,string>={},payload:Record<string,unknown>={};
  if(spec.provider==="openai"){
-  url=(cfg.base||"https://api.openai.com/v1").replace(/\/$/,"")+"/responses";
+  url=trimTrailingSlash(cfg.base||"https://api.openai.com/v1")+"/responses";
   headers={Authorization:"Bearer "+cfg.key};
   payload={model,input:messages.map(m=>({role:m.role,content:m.content})),stream:true};
  }else if(spec.provider==="anthropic"){
-  url=(cfg.base||"https://api.anthropic.com").replace(/\/$/,"")+"/v1/messages";
+  url=trimTrailingSlash(cfg.base||"https://api.anthropic.com")+"/v1/messages";
   const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n");
   headers={"x-api-key":cfg.key!,"anthropic-version":"2023-06-01"};
   payload={model,max_tokens:4096,system,messages:messages.filter(m=>m.role!=="system"),stream:true};
  }else if(spec.provider==="google"){
-  url=(cfg.base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+"/interactions";
+  url=trimTrailingSlash(cfg.base||"https://generativelanguage.googleapis.com/v1beta")+"/interactions";
   const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n\n");
   const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]\\n${m.content}`).join("\n\n");
   headers={"x-goog-api-key":cfg.key!};
   payload={model,input,stream:true,...(system?{system_instruction:system}:{})};
  }else{
-  url=(cfg.base||defaultBase(spec.provider)).replace(/\/$/,"")+"/chat/completions";
+  url=trimTrailingSlash(cfg.base||defaultBase(spec.provider))+"/chat/completions";
   headers={Authorization:"Bearer "+cfg.key};
   payload={model,messages,stream:true};
  }
