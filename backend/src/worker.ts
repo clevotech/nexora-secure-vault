@@ -1,6 +1,7 @@
 import {createDatabasePool,initializeDatabase} from "./db.js";
 import {generateImage,speak,transcribe} from "./media.js";
 import {generateVideo} from "./video.js";
+import {generateMusic} from "./music.js";
 import {createObjectStorage} from "./object-storage.js";
 import {JobStorePostgres,type MediaJob} from "./jobs.js";
 
@@ -26,6 +27,31 @@ async function processJob(job:MediaJob){
     const key=`${job.userId}/jobs/${job.id}.mp3`;
     await storage.put(key,Buffer.from(output.audioBase64,"base64"),"audio/mpeg");
     return {type:"audio",key,model:output.model,format:output.format};
+  }
+  if(job.kind==="music"){
+    if(!storage)throw new Error("Object storage is required for generated music. Configure NEXORA_STORAGE_BUCKET and S3 credentials.");
+    const output=await generateMusic({
+      prompt:String(job.metadata.prompt||""),title:typeof job.metadata.title==="string"?job.metadata.title:undefined,
+      genre:typeof job.metadata.genre==="string"?job.metadata.genre:undefined,
+      durationSeconds:typeof job.metadata.durationSeconds==="number"?job.metadata.durationSeconds:180,
+      bpm:typeof job.metadata.bpm==="number"?job.metadata.bpm:undefined,
+      mood:typeof job.metadata.mood==="string"?job.metadata.mood:undefined,
+      structure:typeof job.metadata.structure==="string"?job.metadata.structure:undefined,
+      lyrics:typeof job.metadata.lyrics==="string"?job.metadata.lyrics:undefined,
+      instrumental:job.metadata.instrumental===true,beatOnly:job.metadata.beatOnly===true,
+      voiceReferenceAudio:typeof job.metadata.voiceReferenceAudio==="string"?job.metadata.voiceReferenceAudio:undefined,
+      voiceName:typeof job.metadata.voiceName==="string"?job.metadata.voiceName:undefined,
+      referenceTrackAudio:typeof job.metadata.referenceTrackAudio==="string"?job.metadata.referenceTrackAudio:undefined,
+      referenceTrackName:typeof job.metadata.referenceTrackName==="string"?job.metadata.referenceTrackName:undefined,
+      referenceRightsConfirmed:job.metadata.referenceRightsConfirmed===true
+    });
+    const bytes=Buffer.from(output.audioBase64,"base64");
+    if(bytes.byteLength===0)throw new Error("Music provider returned an empty audio file.");
+    const mime=output.contentType||"audio/mpeg";
+    const extension=mime.includes("wav")?"wav":mime.includes("ogg")?"ogg":mime.includes("mp4")?"m4a":"mp3";
+    const key=`${job.userId}/jobs/${job.id}.${extension}`;
+    await storage.put(key,bytes,mime);
+    return {type:"audio",key,model:output.model,format:mime,title:typeof job.metadata.title==="string"?job.metadata.title:"Nexora song",durationSeconds:job.metadata.durationSeconds};
   }
   if(job.kind==="video"){
     const output=await generateVideo({prompt:String(job.metadata.prompt||""),model:typeof job.metadata.model==="string"?job.metadata.model:undefined,duration:typeof job.metadata.duration==="string"?job.metadata.duration:undefined,continuity:job.metadata.continuity===true,characterConsistency:job.metadata.characterConsistency===true,voiceReference:job.metadata.voiceReference===true,characterReferenceImages:Array.isArray(job.metadata.characterReferenceImages)?job.metadata.characterReferenceImages.filter((x:unknown)=>Boolean(x&&typeof x==="object"&&typeof (x as {dataUrl?:unknown}).dataUrl==="string")).slice(0,2) as {name?:string;dataUrl:string}[]:[],voiceReferenceAudio:typeof job.metadata.voiceReferenceAudio==="string"?job.metadata.voiceReferenceAudio:undefined,regionalAccent:typeof job.metadata.regionalAccent==="string"?job.metadata.regionalAccent:undefined,voiceStyle:typeof job.metadata.voiceStyle==="string"?job.metadata.voiceStyle:undefined,voiceName:typeof job.metadata.voiceName==="string"?job.metadata.voiceName:undefined,aspectRatio:typeof job.metadata.aspectRatio==="string"?job.metadata.aspectRatio:undefined,resolution:typeof job.metadata.resolution==="string"?job.metadata.resolution:undefined,quality:typeof job.metadata.quality==="string"?job.metadata.quality:undefined});
