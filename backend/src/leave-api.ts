@@ -79,6 +79,21 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     }catch(error){await client.query("ROLLBACK");throw error}finally{client.release();}
   }
 
+  if(action==="certificate.get"){
+    const id=String(input.id||"").trim();
+    if(!id)return fail("A leave request ID is required.");
+    const result=await pool.query(
+      "SELECT r.id,r.employee_user_id AS \"employeeUserId\",e.full_name AS \"employeeName\",e.employee_number AS \"employeeNumber\",e.department,e.email,e.role AS \"employeeRole\",r.category,r.start_date::text AS \"startDate\",r.end_date::text AS \"endDate\",r.expected_resumption_date::text AS \"expectedResumptionDate\",r.requested_days AS \"requestedDays\",r.status,r.created_at AS \"requestedAt\",a.decided_at AS \"approvedAt\",a.approver_user_id AS \"approverUserId\",approver.full_name AS \"approverName\",a.comment AS \"approvalComment\" FROM nexora_leave_requests r JOIN nexora_employees e ON e.user_id=r.employee_user_id LEFT JOIN LATERAL (SELECT * FROM nexora_leave_approvals WHERE leave_request_id=r.id AND decision='approved' ORDER BY decided_at DESC NULLS LAST LIMIT 1) a ON TRUE LEFT JOIN nexora_employees approver ON approver.user_id=a.approver_user_id WHERE r.id=$1 LIMIT 1",
+      [id]
+    );
+    const certificate=result.rows[0];
+    if(!certificate)return fail("Leave request not found or employee profile unavailable.",404);
+    if(certificate.status!=="approved"&&certificate.status!=="completed")return fail("A leave certificate is available only after approval.",409);
+    if(certificate.employeeUserId!==actor&&!isAdmin(auth))return fail("You may only access your own certificate unless you have HR/admin access.",403);
+    await audit("leave.certificate.generate","leave_certificate",id,"success",{status:certificate.status});
+    return ok({certificate});
+  }
+
   if(action==="request.list"){
     const admin=isAdmin(auth);
     const result=admin
