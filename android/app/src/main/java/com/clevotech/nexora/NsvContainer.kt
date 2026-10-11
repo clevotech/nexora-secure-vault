@@ -28,14 +28,12 @@ object NsvContainer {
     private fun headerBytes(salt: ByteArray, key: ByteArray, name: String, size: Long, created: String, operationId: String): ByteArray {
         val metadata = JSONObject()
         metadata.put("originalName", name.replace('\\\\', '_').replace('/', '_').take(1024).ifEmpty { "file" })
-        metadata.put("originalSize", size.toString())
-        metadata.put("createdAt", created)
         val nonce = NsvCrypto.newNonce()
         val encrypted = NsvCrypto.encryptMetadata(key, metadata.toString().toByteArray(Charsets.UTF_8), nonce)
         val h = JSONObject()
         h.put("magic", "NSV1"); h.put("version", 2); h.put("algorithm", "AES-256-GCM"); h.put("kdf", "Argon2id")
         h.put("salt", salt.joinToString("") { "%02x".format(it) }); h.put("chunkSize", NsvProtocol.CHUNK_SIZE)
-        h.put("originalName", "Encrypted file"); h.put("originalSize", "0"); h.put("createdAt", "hidden")
+        h.put("originalName", "Encrypted file"); h.put("originalSize", size.toString()); h.put("createdAt", created)
         h.put("nameNonce", nonce.joinToString("") { "%02x".format(it) })
         h.put("nameCiphertext", encrypted.joinToString("") { "%02x".format(it) })
         h.put("operationId", operationId)
@@ -85,16 +83,7 @@ object NsvContainer {
             require(saltHex.length == 32) { "Invalid salt" }
             for (i in salt.indices) salt[i] = saltHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
             val key = NsvCrypto.deriveKey(password, salt)
-            val expectedSize = if (h.optInt("version") == 2) {
-                val nonceHex = h.optString("nameNonce"); val encryptedHex = h.optString("nameCiphertext")
-                require(nonceHex.length == 24 && encryptedHex.length >= 32 && encryptedHex.length % 2 == 0) { "Invalid encrypted metadata" }
-                val nonce = ByteArray(12) { nonceHex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
-                val ciphertext = ByteArray(encryptedHex.length / 2) { i -> encryptedHex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
-                val metadata = try { JSONObject(String(NsvCrypto.decryptMetadata(key, ciphertext, nonce), Charsets.UTF_8)) } catch (_: Exception) { error("Incorrect password or damaged metadata") }
-                metadata.optString("originalSize").toLongOrNull() ?: error("Invalid original size")
-            } else {
-                h.optString("originalSize").toLongOrNull() ?: error("Invalid original size")
-            }
+            val expectedSize = h.optString("originalSize").toLongOrNull() ?: error("Invalid original size")
             try {
                 resolver.openOutputStream(output, "w")!!.buffered().use { dst ->
                     val buf4 = ByteArray(4); var expectedSeq = 0
