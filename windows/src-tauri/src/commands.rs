@@ -1,6 +1,6 @@
 use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
 use argon2::{Argon2, Algorithm, Params, Version};
-use rand::RngCore;
+use rand::Rng;
 use std::fs::File;
 use std::io::{Read, Write, Seek, SeekFrom};
 
