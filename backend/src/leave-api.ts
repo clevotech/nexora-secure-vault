@@ -1,6 +1,6 @@
 import type {Pool} from "pg";
 import type {AuthContext} from "./auth.js";
-import {appendAuditEvent,expectedResumption,localTimeToUtc,validIsoDate} from "./leave.js";
+import {appendAuditEvent,countWorkdays,expectedResumption,localTimeToUtc,validIsoDate} from "./leave.js";
 
 type Result={status:number;body:unknown};
 const ok=(body:unknown,status=200):Result=>({status,body});
@@ -55,12 +55,14 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     const holidayResult=await pool.query("SELECT holiday_date::text AS date FROM nexora_leave_holidays WHERE holiday_date>=$1::date AND holiday_date<=$2::date ORDER BY holiday_date",[start,new Date(Date.parse(end+"T00:00:00Z")+370*86400000).toISOString().slice(0,10)]);
     const holidayDates=holidayResult.rows.map((r:{date:string})=>String(r.date).slice(0,10));
     const resumption=expectedResumption(end,workweek,holidayDates);
+    const requestedDays=countWorkdays(start,end,workweek,holidayDates);
+    if(requestedDays===0)return fail("The selected date range contains no working days under the employee calendar.");
     const client=await pool.connect();
     try{
       await client.query("BEGIN");
       const overlap=await client.query("SELECT id FROM nexora_leave_requests WHERE employee_user_id=$1 AND status IN ('pending','approved') AND NOT(end_date<$2::date OR start_date>$3::date) LIMIT 1",[actor,start,end]);
       if(overlap.rows[0]){await client.query("ROLLBACK");await audit("leave.request.create","leave_request",undefined,"denied",{reason:"overlapping_dates"});return fail("You already have a pending or approved leave request overlapping those dates.",409);}
-      const inserted=await client.query("INSERT INTO nexora_leave_requests(employee_user_id,category,start_date,end_date,expected_resumption_date,reason,status,requested_days) VALUES($1,$2,$3,$4,$5,$6,'pending',$7) RETURNING id,employee_user_id AS \"employeeUserId\",category,start_date AS \"startDate\",end_date AS \"endDate\",expected_resumption_date AS \"expectedResumptionDate\",status,requested_days AS \"requestedDays\",created_at AS \"createdAt\"",[actor,category,start,end,resumption,reason||null,Number((()=>{const holidays=new Set(holidayDates);let count=0;for(let d=new Date(start+"T00:00:00Z"),last=new Date(end+"T00:00:00Z");d<=last;d.setUTCDate(d.getUTCDate()+1)){const date=d.toISOString().slice(0,10),day=d.getUTCDay()===0?7:d.getUTCDay();if(workweek.includes(day)&&!holidays.has(date))count++;}return count;})())]);
+      const inserted=await client.query("INSERT INTO nexora_leave_requests(employee_user_id,category,start_date,end_date,expected_resumption_date,reason,status,requested_days) VALUES($1,$2,$3,$4,$5,$6,'pending',$7) RETURNING id,employee_user_id AS \"employeeUserId\",category,start_date AS \"startDate\",end_date AS \"endDate\",expected_resumption_date AS \"expectedResumptionDate\",status,requested_days AS \"requestedDays\",created_at AS \"createdAt\"",[actor,category,start,end,resumption,reason||null,requestedDays]);
       const id=String(inserted.rows[0].id);
       const approval=await client.query("INSERT INTO nexora_leave_approvals(leave_request_id,step_number,approver_user_id,decision) SELECT $1,1,COALESCE(e.supervisor_user_id,(SELECT user_id FROM nexora_employees WHERE role IN ('hr','admin') AND active=true ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END LIMIT 1)),'pending' FROM nexora_employees e WHERE e.user_id=$2 AND COALESCE(e.supervisor_user_id,(SELECT user_id FROM nexora_employees WHERE role IN ('hr','admin') AND active=true ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END LIMIT 1)) IS NOT NULL ON CONFLICT DO NOTHING",[id,actor]);
       if(!approval.rowCount){await client.query("ROLLBACK");return fail("No eligible supervisor or HR/admin approver is configured. Ask an administrator to assign one before applying.",409);}
