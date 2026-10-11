@@ -24,7 +24,7 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   let last:unknown;
   for(const spec of candidates){
     try{return await callProvider(spec,input.messages);}
-    catch(error){last=error;}
+    catch(error){if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new Error("AI provider timed out while generating your website. Try a shorter brief or retry; the request has been stopped rather than waiting through multiple provider timeouts.");last=error;}
   }
   throw last instanceof Error?last:new Error("No configured AI provider is available. Configure NEXORA_GOOGLE_API_KEY or another supported provider.");
 }
