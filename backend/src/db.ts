@@ -1,5 +1,7 @@
 import {Pool} from "pg";
 
+const SUPABASE_ROOT_CA_URL="https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt";
+
 export async function initializeDatabase(pool:Pool){
   await pool.query(`
     CREATE TABLE IF NOT EXISTS nexora_memory(
@@ -24,21 +26,31 @@ export async function initializeDatabase(pool:Pool){
   `);
 }
 
-export function createDatabasePool(){
+export async function createDatabasePool(){
   const rawUrl=process.env.DATABASE_URL;
   if(!rawUrl)return null;
 
-  // Keep TLS certificate verification enabled. If Supabase uses a private/custom
-  // database CA chain, supply its official root certificate through SUPABASE_DB_CA.
-  // Render environment variables may store PEM newlines as literal \\n.
+  // Supabase documents this public root CA for verified PostgreSQL TLS.
+  // Prefer a project-specific CA configured in Render, otherwise retrieve the
+  // official Supabase root CA over HTTPS using Node's normal certificate checks.
+  const configuredCa=process.env.SUPABASE_DB_CA?.replace(/\\n/g,"\n").trim();
+  let ca=configuredCa;
+  if(!ca){
+    const response=await fetch(SUPABASE_ROOT_CA_URL);
+    if(!response.ok)throw new Error(`Could not retrieve the official Supabase database CA (HTTP ${response.status}); set SUPABASE_DB_CA in Render.`);
+    ca=(await response.text()).trim();
+    if(!ca.includes("-----BEGIN CERTIFICATE-----")||!ca.includes("-----END CERTIFICATE-----")){
+      throw new Error("The official Supabase database CA response was not a valid PEM certificate; set SUPABASE_DB_CA in Render.");
+    }
+  }
+
   const parsedUrl=new URL(rawUrl);
   for(const key of ["sslmode","ssl","sslcert","sslkey","sslrootcert","sslfactory"]){
     parsedUrl.searchParams.delete(key);
   }
-  const ca=process.env.SUPABASE_DB_CA?.replace(/\\n/g,"\n").trim();
   const pool=new Pool({
     connectionString:parsedUrl.toString(),
-    ssl:{rejectUnauthorized:true,...(ca?{ca}: {})},
+    ssl:{ca,rejectUnauthorized:true},
     max:Number(process.env.NEXORA_DB_POOL_MAX||10),
     idleTimeoutMillis:30000,
     connectionTimeoutMillis:5000
