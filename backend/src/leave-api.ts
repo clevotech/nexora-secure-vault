@@ -50,7 +50,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     const employee=await pool.query("SELECT workweek_days AS \"workweekDays\",timezone,active FROM nexora_employees WHERE user_id=$1",[actor]);
     if(!employee.rows[0]||!employee.rows[0].active)return fail("An active employee profile is required before applying for leave.",403);
     const workweek=(employee.rows[0].workweekDays||[1,2,3,4,5]).map(Number);
-    const holidayResult=await pool.query("SELECT holiday_date::text AS date FROM nexora_leave_holidays WHERE holiday_date>$1::date AND holiday_date<=$2::date ORDER BY holiday_date",[end,new Date(Date.parse(end+"T00:00:00Z")+370*86400000).toISOString().slice(0,10)]);
+    const holidayResult=await pool.query("SELECT holiday_date::text AS date FROM nexora_leave_holidays WHERE holiday_date>=$1::date AND holiday_date<=$2::date ORDER BY holiday_date",[start,new Date(Date.parse(end+"T00:00:00Z")+370*86400000).toISOString().slice(0,10)]);
     const holidayDates=holidayResult.rows.map((r:{date:string})=>String(r.date).slice(0,10));
     const resumption=expectedResumption(end,workweek,holidayDates);
     const client=await pool.connect();
