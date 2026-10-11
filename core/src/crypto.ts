@@ -20,3 +20,13 @@ export function decryptChunk(key:Uint8Array,ciphertext:Uint8Array,nonce:Uint8Arr
 export const createSalt=()=>random(16);
 export const operationId=()=>hex(random(16));
 export const sha256=async(data:Uint8Array)=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",data.slice())));
+
+const unhex=(value:string)=>new Uint8Array((value.match(/../g)||[]).map(v=>parseInt(v,16)));
+export function encryptMetadata(key:Uint8Array,value:string){
+ const nonce=random(12),ciphertext=gcm(key,nonce,new Uint8Array()).encrypt(enc.encode(value));
+ return {nameNonce:hex(nonce),nameCiphertext:hex(ciphertext)};
+}
+export function decryptMetadata(key:Uint8Array,nonceHex:string,ciphertextHex:string){
+ const plaintext=gcm(key,unhex(nonceHex),new Uint8Array()).decrypt(unhex(ciphertextHex));
+ return new TextDecoder().decode(plaintext);
+}
