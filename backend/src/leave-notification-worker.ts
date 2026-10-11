@@ -6,7 +6,7 @@ const graphVersion=process.env.WHATSAPP_GRAPH_API_VERSION;
 const language=process.env.WHATSAPP_TEMPLATE_LANGUAGE||"en";
 const pollMs=Math.max(1000,Number(process.env.NEXORA_LEAVE_POLL_MS||5000));
 if(!token||!phoneNumberId||!graphVersion)throw new Error("Set WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_GRAPH_API_VERSION for the leave notification worker.");
-if(!/^v\\d+\\.\\d+$/.test(graphVersion))throw new Error("WHATSAPP_GRAPH_API_VERSION must look like vNN.NN.");
+if(!/^v\d+\.\d+$/.test(graphVersion))throw new Error("WHATSAPP_GRAPH_API_VERSION must look like vNN.NN.");
 
 const pool=await createDatabasePool();
 if(!pool)throw new Error("DATABASE_URL is required for the leave notification worker.");
