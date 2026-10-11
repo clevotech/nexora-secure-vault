@@ -82,22 +82,22 @@ export async function callProviderStream(spec:ModelSpec,messages:ChatMessage[],o
  const model=modelName(spec);
  let url="",headers:Record<string,string>={},payload:Record<string,unknown>={};
  if(spec.provider==="openai"){
-  url=(cfg.base||"https://api.openai.com/v1").replace(/\\/$/,"")+"/responses";
+  url=(cfg.base||"https://api.openai.com/v1").replace(/\/$/,"")+"/responses";
   headers={Authorization:"Bearer "+cfg.key};
   payload={model,input:messages.map(m=>({role:m.role,content:m.content})),stream:true};
  }else if(spec.provider==="anthropic"){
-  url=(cfg.base||"https://api.anthropic.com").replace(/\\/$/,"")+"/v1/messages";
-  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\\n");
+  url=(cfg.base||"https://api.anthropic.com").replace(/\/$/,"")+"/v1/messages";
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n");
   headers={"x-api-key":cfg.key!,"anthropic-version":"2023-06-01"};
   payload={model,max_tokens:4096,system,messages:messages.filter(m=>m.role!=="system"),stream:true};
  }else if(spec.provider==="google"){
-  url=(cfg.base||"https://generativelanguage.googleapis.com/v1beta").replace(/\\/$/,"")+"/interactions";
-  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\\n\\n");
-  const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]\\n${m.content}`).join("\\n\\n");
+  url=(cfg.base||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"")+"/interactions";
+  const system=messages.filter(m=>m.role==="system").map(m=>m.content).join("\n\n");
+  const input=messages.filter(m=>m.role!=="system").map(m=>`[${m.role.toUpperCase()}]\\n${m.content}`).join("\n\n");
   headers={"x-goog-api-key":cfg.key!};
   payload={model,input,stream:true,...(system?{system_instruction:system}:{})};
  }else{
-  url=(cfg.base||defaultBase(spec.provider)).replace(/\\/$/,"")+"/chat/completions";
+  url=(cfg.base||defaultBase(spec.provider)).replace(/\/$/,"")+"/chat/completions";
   headers={Authorization:"Bearer "+cfg.key};
   payload={model,messages,stream:true};
  }
@@ -110,7 +110,7 @@ export async function callProviderStream(spec:ModelSpec,messages:ChatMessage[],o
  const reader=response.body.getReader(),decoder=new TextDecoder();
  let buffer="",full="";
  const emit=(block:string)=>{
-  const data=block.split(/\\r?\\n/).filter(line=>line.startsWith("data:")).map(line=>line.slice(5).trim()).join("\\n");
+  const data=block.split(/\\r?\\n/).filter(line=>line.startsWith("data:")).map(line=>line.slice(5).trim()).join("\n");
   if(!data||data==="[DONE]")return;
   let item:Record<string,any>;
   try{item=JSON.parse(data)}catch{return;}
