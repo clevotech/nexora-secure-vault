@@ -6,7 +6,10 @@ test("round trips arbitrary multi-chunk bytes",()=>{
   const input=new Uint8Array(2_500_123); for(let i=0;i<input.length;i++)input[i]=(i*31)%256;
   const c=encryptFile(input,"correct horse battery staple","sample.bin","2026-01-01T00:00:00.000Z");
   const d=decryptFile(c,"correct horse battery staple");
-  assert.deepEqual(d.data,input); assert.equal(d.header.originalName,"sample.bin");\n  const rawHeader=new TextDecoder().decode(c.subarray(4,4+new DataView(c.buffer,c.byteOffset,4).getUint32(0,true)));\n  assert.equal(rawHeader.includes("sample.bin"),false,"encrypted container must not expose the original filename");\n  assert.equal(d.header.originalSize,String(input.length));
+  assert.deepEqual(d.data,input); assert.equal(d.header.originalName,"sample.bin");
+  const rawHeader=new TextDecoder().decode(c.subarray(4,4+new DataView(c.buffer,c.byteOffset,4).getUint32(0,true)));
+  assert.equal(rawHeader.includes("sample.bin"),false,"encrypted container must not expose the original filename");
+  assert.equal(d.header.originalSize,String(input.length));
 });
 
 test("empty file is authenticated and round trips",()=>{
