@@ -21,3 +21,19 @@ export async function ensureAnonymousSession():Promise<Session|null>{
 }
 
 export function authConfigured(){return Boolean(supabase)}
+
+export async function signInWithEmployeeId(userId:string,password:string):Promise<void>{
+  if(!supabase)throw new Error("Sign-in is not configured. Contact your Nexora administrator.");
+  const endpoint=(import.meta.env.VITE_NEXORA_AI_ENDPOINT||"").replace(/\/$/,"");
+  if(!endpoint)throw new Error("Nexora sign-in endpoint is not configured.");
+  const response=await fetch(endpoint+"/auth/employee-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:userId.trim().toUpperCase(),password})});
+  const result=await response.json().catch(()=>({})) as {access_token?:string;refresh_token?:string;error?:string};
+  if(!response.ok||!result.access_token||!result.refresh_token)throw new Error(result.error||"User ID or password is incorrect.");
+  const {error}=await supabase.auth.setSession({access_token:result.access_token,refresh_token:result.refresh_token});
+  if(error)throw new Error("Sign-in succeeded but the session could not be saved. Please try again.");
+}
+export async function hasEmployeeSession():Promise<boolean>{
+  if(!supabase)return false;
+  const {data:{session}}=await supabase.auth.getSession();
+  return Boolean(session&&!session.user.is_anonymous);
+}
