@@ -1,4 +1,4 @@
-import {createDatabasePool} from "./db.js";
+import {createDatabasePool,initializeDatabase} from "./db.js";
 import {generateImage,speak} from "./media.js";
 import {generateVideo} from "./video.js";
 import {createObjectStorage} from "./object-storage.js";
@@ -6,9 +6,10 @@ import {JobStorePostgres,type MediaJob} from "./jobs.js";
 
 const workerId=process.env.NEXORA_WORKER_ID||`worker-${process.pid}`;
 const pollMs=Math.max(250,Number(process.env.NEXORA_WORKER_POLL_MS||1000));
-const pool=createDatabasePool();
+const pool=await createDatabasePool();
 
 if(!pool)throw new Error("DATABASE_URL is required for the production worker");
+await initializeDatabase(pool);
 
 const jobs=new JobStorePostgres(pool);
 const storage=createObjectStorage();
