@@ -1,10 +1,22 @@
 import {callProvider} from "./providers.js";
-import {routeModel,findModel} from "./registry.js";
+import {MODELS,providerEnv,routeModel,findModel} from "./registry.js";
 import type {ChatRequest,ProviderResult} from "./types.js";
 
 export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   const primary=routeModel(input.model,input.task||"chat");
-  const candidates=[primary,...[routeModel("fast","chat"),routeModel("reasoning","reasoning")]].filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i);
+  const configured=(spec:typeof MODELS[number])=>Boolean(providerEnv(spec.provider).key);
+  const candidates=[primary,...MODELS
+    .filter(configured)
+    .sort((a,b)=>{
+      const task=input.task||"chat";
+      const aMatch=a.strengths.includes(task)?0:1;
+      const bMatch=b.strengths.includes(task)?0:1;
+      if(aMatch!==bMatch)return aMatch-bMatch;
+      if(a.provider==="google"&&b.provider!=="google")return -1;
+      if(b.provider==="google"&&a.provider!=="google")return 1;
+      return a.speed==="fast"?-1:b.speed==="fast"?1:0;
+    })]
+    .filter((m,i,a)=>configured(m)&&a.findIndex(x=>x.id===m.id)===i);
   let last:unknown;
   for(const spec of candidates){
     try{return await callProvider(spec,input.messages);}
@@ -18,7 +30,7 @@ export function validateChat(input:unknown):ChatRequest{
   const x=input as Partial<ChatRequest>;
   if(!Array.isArray(x.messages)||x.messages.length===0||x.messages.length>100)throw new Error("Invalid messages");
   const messages=x.messages.map(m=>{
-    if(!m||!["system","user","assistant"].includes(m.role)||typeof m.content!=="string"||m.content.length>100000)throw new Error("Invalid message");
+    if(!m||!["system","user","assistant"].includes(m.role)||typeof m.content!=="string"||m.content.length>100000)throw new Error("Invalid messages");
     return {role:m.role,content:m.content};
   });
   const model=typeof x.model==="string"?x.model:"auto";
