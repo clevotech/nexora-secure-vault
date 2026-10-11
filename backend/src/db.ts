@@ -1,4 +1,5 @@
 import {Pool} from "pg";
+import {readFile} from "node:fs/promises";
 
 const SUPABASE_ROOT_CA_URL="https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt";
 
@@ -24,6 +25,10 @@ export async function initializeDatabase(pool:Pool){
     );
     CREATE INDEX IF NOT EXISTS nexora_jobs_user_idx ON nexora_jobs(user_id,created_at DESC);
   `);
+  // Keep the additive leave/audit schema in a versioned SQL file so deploys
+  // can safely create new tables without replacing or dropping existing data.
+  const leaveMigration=await readFile(new URL("../migrations/003_leave_tracker_audit.sql",import.meta.url),"utf8");
+  await pool.query(leaveMigration);
 }
 
 export async function createDatabasePool(){
@@ -33,7 +38,7 @@ export async function createDatabasePool(){
   // Supabase documents this public root CA for verified PostgreSQL TLS.
   // Prefer a project-specific CA configured in Render, otherwise retrieve the
   // official Supabase root CA over HTTPS using Node's normal certificate checks.
-  const configuredCa=process.env.SUPABASE_DB_CA?.replace(/\\n/g,"\n").trim();
+  const configuredCa=process.env.SUPABASE_DB_CA?.replace(/\\\\n/g,"\\n").trim();
   let ca=configuredCa;
   if(!ca){
     const response=await fetch(SUPABASE_ROOT_CA_URL);
