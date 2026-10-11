@@ -32,7 +32,8 @@ async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
   if(!key)throw new Error("Video generation is not configured. Add a supported video provider or NEXORA_GOOGLE_API_KEY.");
   const durationSeconds=Number((input.duration||"8").trim().split(" ")[0]);
   if(![4,6,8].includes(durationSeconds))throw new Error("Google Veo generates one short clip of up to 8 seconds. Select 4, 6, or 8 seconds, or configure NEXORA_VIDEO_API_URL for a long-form video provider.");
-  const model=(process.env.NEXORA_VIDEO_MODEL||"veo-3.1-generate-preview").trim();
+  const configuredModel=(process.env.NEXORA_VIDEO_MODEL||"").trim();
+  const model=configuredModel.startsWith("veo-3.1-")?configuredModel:"veo-3.1-generate-preview";
   const apiBase=trimSlash(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta");
   const headers={"Content-Type":"application/json","x-goog-api-key":key};
   const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[{prompt:input.prompt}],parameters:{aspectRatio:"9:16",durationSeconds}})}));
