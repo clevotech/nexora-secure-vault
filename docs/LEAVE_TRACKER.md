@@ -11,6 +11,7 @@ All requests use POST /leave with the same Bearer-token authentication as the re
 - request.create — submit a leave request with category, startDate, endDate and optional reason.
 - request.list — employees see their own requests; HR/admin sees the organization list.
 - request.decide — assigned supervisor or HR/admin approves/rejects a pending request.
+- certificate.get — employee or HR/admin retrieves an approved/completed leave certificate. The UI can download a standalone HTML certificate or open a print dialog to print or save as PDF. Pending/rejected requests are refused and generation is audit logged.
 - request.cancel — employee cancels their own pending/approved request.
 - resumption.confirm — employee records actual return to work.
 - calendar.holiday.save / calendar.holiday.list — HR/admin maintains holiday dates.
