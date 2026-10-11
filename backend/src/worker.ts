@@ -9,6 +9,7 @@ const pollMs=Math.max(250,Number(process.env.NEXORA_WORKER_POLL_MS||1000));
 const pool=await createDatabasePool();
 
 if(!pool)throw new Error("DATABASE_URL is required for the production worker");
+const databasePool=pool;
 await initializeDatabase(pool);
 
 const jobs=new JobStorePostgres(pool);
@@ -64,7 +65,7 @@ async function loop(){
 
 async function shutdown(){
   stopping=true;
-  await pool.end();
+  await databasePool.end();
 }
 
 process.on("SIGINT",()=>{void shutdown().then(()=>process.exit(0));});
@@ -72,6 +73,6 @@ process.on("SIGTERM",()=>{void shutdown().then(()=>process.exit(0));});
 
 loop().catch(async error=>{
   console.error("Nexora worker failed",error);
-  await pool.end();
+  await databasePool.end();
   process.exit(1);
 });
