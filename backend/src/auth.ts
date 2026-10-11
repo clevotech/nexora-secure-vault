@@ -17,8 +17,11 @@ export async function authenticate(headers:Record<string,string|undefined>):Prom
   if(!issuer||!audience)throw new Error("Production authentication verifier is not configured");
 
   try{
-    const jwks=new URL("/.well-known/jwks.json",issuer.endsWith("/")?issuer:issuer+"/");
-    const keys=createRemoteJWKSet(jwks);
+    // Preserve issuer path segments. Supabase's JWKS endpoint is under
+    // /auth/v1/.well-known/jwks.json, not the domain root.
+    const normalizedIssuer=issuer.endsWith("/")?issuer:issuer+"/";
+    const jwksUrl=new URL(".well-known/jwks.json",normalizedIssuer);
+    const keys=createRemoteJWKSet(jwksUrl);
     const {payload}=await jwtVerify(token,keys,{issuer,audience});
     const userId=typeof payload.sub==="string"?payload.sub:"";
     if(!userId)throw new Error("Authenticated token has no subject");
@@ -26,7 +29,9 @@ export async function authenticate(headers:Record<string,string|undefined>):Prom
     const rawScopes=payload.scope;
     const scopes=new Set(typeof rawScopes==="string"?rawScopes.split(" ").filter(Boolean):["user"]);
     return {userId,scopes};
-  }catch{
+  }catch(error){
+    // Keep detailed verification diagnostics in private server logs only.
+    console.error("Nexora JWT verification failed",error);
     throw new Error("Authentication failed");
   }
 }
