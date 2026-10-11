@@ -1,4 +1,4 @@
-import {encryptStream,decryptStream} from "../../core/src/stream";
+import {encryptStream,decryptStream,restoreHeaderName} from "../../core/src/stream";\nimport {decodeHeader} from "../../core/src/protocol";
 async function* fileSource(file:File,signal?:AbortSignal){const reader=file.stream().getReader();try{while(true){if(signal?.aborted)throw new DOMException("Operation cancelled","AbortError");const r=await reader.read();if(r.done)break;yield r.value}}finally{reader.releaseLock()}}
 type SaveHandle={createWritable:()=>Promise<WritableStream<Uint8Array>>};
 async function saveTarget(name:string):Promise<{sink:(c:Uint8Array)=>Promise<void>;close:()=>Promise<void>}>{
@@ -9,7 +9,7 @@ async function saveTarget(name:string):Promise<{sink:(c:Uint8Array)=>Promise<voi
  return {sink:async c=>{await writer.ready;await writer.write(c)},close:async()=>{await writer.close()}};
 }
 export async function encryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
- const target=await saveTarget(file.name+".nsv");let written=0;
+ const target=await saveTarget("nexora-vault-"+crypto.randomUUID()+".nsv");let written=0;
  try{const header=await encryptStream(fileSource(file,signal),async c=>{written+=c.length;onChunk?.(written);await target.sink(c)},password,file.name,file.size);await target.close();return{header}}
  catch(e){try{await target.close()}catch{}throw e}
 }
