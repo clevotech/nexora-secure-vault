@@ -179,7 +179,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
 
   if(action==="calendar.holiday.list"){
     if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
-    const result=await pool.query("SELECT holiday_date::text AS date,name,region FROM nexora_leave_holidays WHERE holiday_date >= CURRENT_DATE - 30 ORDER BY holiday_date LIMIT 500");
+    const result=await pool.query("SELECT holiday_date::text AS date,name,region FROM nexora_leave_holidays WHERE holiday_date >= CURRENT_DATE - 30 UNION SELECT holiday_date::text AS date,name,region FROM nexora_organization_leave_holidays WHERE organization_id=$1 AND holiday_date >= CURRENT_DATE - 30 ORDER BY date LIMIT 500",[organizationId]);
     return ok({holidays:result.rows});
   }
 
