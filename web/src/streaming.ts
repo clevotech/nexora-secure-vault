@@ -9,17 +9,23 @@ async function saveTarget(name:string):Promise<{sink:(c:Uint8Array)=>Promise<voi
  const writable=await (handle as SaveHandle).createWritable();const writer=writable.getWriter();
  return {sink:async c=>{await writer.ready;await writer.write(c)},close:async()=>{await writer.close()}};
 }
+const u32=(b:Uint8Array,o=0)=>new DataView(b.buffer,b.byteOffset+o,4).getUint32(0,true);
+async function readHeader(file:File){
+ const prefix=new Uint8Array(await file.slice(0,4).arrayBuffer());if(prefix.length!==4)throw new Error("Invalid Nexora encrypted file");
+ const hlen=u32(prefix);if(hlen<1||hlen>65536)throw new Error("Invalid Nexora header");
+ const headerBytes=new Uint8Array(await file.slice(4,4+hlen).arrayBuffer());
+ if(headerBytes.length!==hlen)throw new Error("Incomplete Nexora header");
+ return decodeHeader(headerBytes);
+}
 export async function encryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
- const target=await saveTarget("nexora-vault-"+crypto.randomUUID()+".nsv");let written=0;
+ const target=await saveTarget("Nexora-"+crypto.randomUUID().replace(/-/g,"").slice(0,16)+".nsv");let written=0;
  try{const header=await encryptStream(fileSource(file,signal),async c=>{written+=c.length;onChunk?.(written);await target.sink(c)},password,file.name,file.size);await target.close();return{header}}
  catch(e){try{await target.close()}catch{}throw e}
 }
 export async function decryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
- const prefix=new Uint8Array(await file.slice(0,4).arrayBuffer());if(prefix.length!==4)throw new Error("Invalid Nexora container");
- const hlen=new DataView(prefix.buffer,prefix.byteOffset,4).getUint32(0,true);if(hlen===0||hlen>64*1024)throw new Error("Invalid Nexora container header");
- const headerBytes=new Uint8Array(await file.slice(4,4+hlen).arrayBuffer());if(headerBytes.length!==hlen)throw new Error("Incomplete Nexora container header");
- const header=restoreHeaderName(decodeHeader(headerBytes),password);
- const target=await saveTarget(header.originalName||"decrypted-file");let written=0;
- try{const restored=await decryptStream(fileSource(file,signal),async c=>{written+=c.length;onChunk?.(written);await target.sink(c)},password);await target.close();return{header:restored}}
+ const storedHeader=await readHeader(file);
+ const name=restoreHeaderName(storedHeader,password);
+ const target=await saveTarget(name);let written=0;
+ try{const header=await decryptStream(fileSource(file,signal),async c=>{written+=c.length;onChunk?.(written);await target.sink(c)},password);await target.close();return{header}}
  catch(e){try{await target.close()}catch{}throw e}
 }
