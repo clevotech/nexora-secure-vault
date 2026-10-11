@@ -34,6 +34,7 @@ const server=createServer(async(req,res)=>{
   res.setHeader("Vary","Origin");
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
+  if(req.method==="OPTIONS"){res.statusCode=204;return res.end();}
   if(req.url==="/health" && req.method==="GET"){
     let database:"connected"|"unconfigured"|"unreachable"=pool?"connected":"unconfigured";
     if(pool){try{await pool.query("SELECT 1");}catch{database="unreachable";}}
