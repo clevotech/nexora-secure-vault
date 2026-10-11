@@ -3,6 +3,30 @@ import {providerEnv} from "./registry.js";
 
 function requireConfig(provider:ProviderId){const cfg=providerEnv(provider);if(!cfg.key)throw new Error(`Provider ${provider} is not configured`);return cfg;}
 function modelName(spec:ModelSpec){return spec.id.split(":").slice(1).join(":");}
+
+// Keep double asterisks only for standalone heading lines. Remove them from
+// inline emphasis and ordinary prose, and never expose hash-based headings.
+export function cleanGeneratedText(value:string){
+  const normalized = value
+    .replace(/\r\n?/g,"\n")
+    .replace(/(^|\n)\s*#{1,6}\s+/g,"$1")
+    .replace(/#{2,}/g,"")
+    .replace(/__(.*?)__/gs,"$1")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g,"$1$2")
+    .replace(/(^|\n)\s*`{3,}[^\n]*\n/g,"$1")
+    .replace(/\n\s*`{3,}\s*(?=\n|$)/g,"\n");
+  return normalized.split("\n").map(line => {
+    const match = line.match(/^(\s*)\*\*([^*\n]{2,100})\*\*(\s*)$/);
+    if (!match) return line.replace(/\*\*(.*?)\*\*/g,"$1");
+    const heading = match[2].trim();
+    // Keep emphasis only for concise, standalone heading-like labels, not sentences.
+    const headingLike = !/[.!?。！？]$/.test(heading) && heading.split(/\s+/).length <= 10;
+    return headingLike ? line : line.replace(/\*\*(.*?)\*\*/g,"$1");
+  }).join("\n").trim();
+}
+function cleanResult(result:ProviderResult):ProviderResult{
+  return {...result,content:cleanGeneratedText(result.content)};
+}
 async function jsonFetch(url:string,init:RequestInit){
   const timeoutMs=Math.max(5000,Math.min(120000,Number(process.env.NEXORA_PROVIDER_TIMEOUT_MS||30000)));
   const signal=init.signal||AbortSignal.timeout(timeoutMs);
@@ -45,8 +69,8 @@ ${m.content}`).join("\n\n");
   return {content,provider:"google",model:spec.id};
 }
 export async function callProvider(spec:ModelSpec,messages:ChatMessage[]):Promise<ProviderResult>{
-  if(spec.provider==="openai")return openAI(spec,messages);
-  if(spec.provider==="anthropic")return anthropic(spec,messages);
-  if(spec.provider==="google")return google(spec,messages);
-  return openAICompatible(spec,messages);
+  if(spec.provider==="openai")return openAI(spec,messages).then(cleanResult);
+  if(spec.provider==="anthropic")return anthropic(spec,messages).then(cleanResult);
+  if(spec.provider==="google")return google(spec,messages).then(cleanResult);
+  return openAICompatible(spec,messages).then(cleanResult);
 }

@@ -4,11 +4,11 @@ import type {ChatRequest,ProviderResult} from "./types.js";
 
 export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   const primary=routeModel(input.model,input.task||"chat");
-  const googleConfigured=Boolean(providerEnv("google").key);
   const configured=(spec:typeof MODELS[number])=>Boolean(providerEnv(spec.provider).key);
-  // When Gemini is configured, never fall back to OpenAI: an OpenAI quota error
-  // must not hide a Google configuration/model/quota error.
-  const eligible=(spec:typeof MODELS[number])=>configured(spec)&&(!googleConfigured||spec.provider!=="openai");
+  // Treat every configured provider as a legitimate fallback. If Google/Gemini
+  // reaches its quota, a configured OpenAI, Anthropic, xAI, DeepSeek, or Mistral
+  // key can still serve the request. Provider errors are retained if all fail.
+  const eligible=(spec:typeof MODELS[number])=>configured(spec);
   const ranked=[primary,...MODELS
     .filter(eligible)
     .sort((a,b)=>{
