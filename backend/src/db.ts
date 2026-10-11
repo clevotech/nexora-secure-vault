@@ -29,6 +29,8 @@ export async function initializeDatabase(pool:Pool){
   // can safely create new tables without replacing or dropping existing data.
   const leaveMigration=await readFile(new URL("../migrations/003_leave_tracker_audit.sql",import.meta.url),"utf8");
   await pool.query(leaveMigration);
+  const holidayMigration=await readFile(new URL("../migrations/004_leave_holidays.sql",import.meta.url),"utf8");
+  await pool.query(holidayMigration);
 }
 
 export async function createDatabasePool(){
