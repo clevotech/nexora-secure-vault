@@ -1,6 +1,6 @@
 const OPENAI="https://api.openai.com/v1";
 const GOOGLE_DEFAULT="https://generativelanguage.googleapis.com/v1beta";
-function openAIKey(){const k=process.env.NEXORA_OPENAI_API_KEY;if(!k)throw new Error("No media provider configured. Set NEXORA_GOOGLE_API_KEY or NEXORA_OPENAI_API_KEY.");return k;}
+function openAIKey(){const k=process.env.NEXORA_OPENAI_API_KEY;if(!k)throw new Error("Media provider not configured. Set NEXORA_GOOGLE_API_KEY or NEXORA_OPENAI_API_KEY.");return k;}
 function googleConfig(){const key=process.env.NEXORA_GOOGLE_API_KEY;if(!key)throw new Error("Google Gemini media provider is not configured");return {key,base:(process.env.NEXORA_GOOGLE_BASE_URL||GOOGLE_DEFAULT).replace(/\/$/,"")};}
 async function parse(r:Response){const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||d?.message||`Media provider failed (${r.status})`);return d;}
 async function googleGenerate(model:string,contents:unknown,generationConfig?:unknown){
