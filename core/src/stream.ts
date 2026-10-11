@@ -29,7 +29,7 @@ export function restoreHeaderName(header:NsvHeader,password:string):string{
 }
 export async function decryptStream(source:ByteSource,sink:ByteSink,password:string){
  const it=source[Symbol.asyncIterator](),state={buf:new Uint8Array()};
- const hlen=ru32(await readExact(it,state,4));if(hlen>64*1024)throw new Error("Invalid header length");
+ const hlen=ru32(await readExact(it,state,4),0);if(hlen>64*1024)throw new Error("Invalid header length");
  const hb=await readExact(it,state,hlen),header=decodeHeader(hb),salt=new Uint8Array(header.salt.match(/../g)!.map(x=>parseInt(x,16))),key=deriveKey(password,salt);
  let expected=0,total=0,outputHeader=header;
  if(header.nameNonce&&header.nameCiphertext)outputHeader={...header,originalName:restoreHeaderName(header,password)};
