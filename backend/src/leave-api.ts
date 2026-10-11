@@ -172,7 +172,7 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     if(!isAdmin(auth))return fail("HR/admin authorization required.",403);
     const date=String(input.date||""),name=String(input.name||"").trim().slice(0,180),region=String(input.region||"global").trim().slice(0,80)||"global";
     if(!validIsoDate(date)||!name)return fail("A valid holiday date and name are required.");
-    await pool.query("INSERT INTO nexora_leave_holidays(holiday_date,name,region,created_by) VALUES($1,$2,$3,$4) ON CONFLICT(holiday_date) DO UPDATE SET name=EXCLUDED.name,region=EXCLUDED.region,created_by=EXCLUDED.created_by",[date,name,region,actor]);
+    await pool.query("INSERT INTO nexora_organization_leave_holidays(organization_id,holiday_date,name,region,created_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(organization_id,holiday_date) DO UPDATE SET name=EXCLUDED.name,region=EXCLUDED.region,created_by=EXCLUDED.created_by",[organizationId,date,name,region,actor]);
     await audit("leave.holiday.save","leave_holiday",date,"success",{region});
     return ok({holiday:{date,name,region}});
   }
