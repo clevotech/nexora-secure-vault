@@ -1,4 +1,4 @@
-export type VideoRequest={prompt:string;model?:string;duration?:string;continuity?:boolean;characterConsistency?:boolean;voiceReference?:boolean;characterReferenceImages?:{name?:string;dataUrl:string}[];voiceReferenceAudio?:string;regionalAccent?:string;voiceStyle?:string;voiceName?:string};
+export type VideoRequest={prompt:string;model?:string;duration?:string;continuity?:boolean;characterConsistency?:boolean;voiceReference?:boolean;characterReferenceImages?:{name?:string;dataUrl:string}[];voiceReferenceAudio?:string;regionalAccent?:string;voiceStyle?:string;voiceName?:string;aspectRatio?:string;resolution?:string;quality?:string};
 export type VideoResult={videoBase64:string;model?:string;contentType:string};
 
 const trimSlash=(value:string)=>value.endsWith("/")?value.slice(0,-1):value;
@@ -8,7 +8,7 @@ const parse=async(r:Response)=>{const d=await r.json().catch(()=>({}));if(!r.ok)
 
 async function generateWithConfiguredProvider(input:VideoRequest,url:string):Promise<VideoResult>{
   const headers={"Content-Type":"application/json",...(apiKey()?{Authorization:`Bearer ${apiKey()}`}:{})};
-  const created=await parse(await fetch(url,{method:"POST",headers,body:JSON.stringify({prompt:input.prompt,model:input.model||process.env.NEXORA_VIDEO_MODEL,duration:input.duration,continuity:input.continuity,characterConsistency:input.characterConsistency,voiceReference:input.voiceReference,characterReferenceImages:input.characterReferenceImages||[],voiceReferenceAudio:input.voiceReferenceAudio,regionalAccent:input.regionalAccent,voiceStyle:input.voiceStyle,voiceName:input.voiceName})}));
+  const created=await parse(await fetch(url,{method:"POST",headers,body:JSON.stringify({prompt:input.prompt,model:input.model||process.env.NEXORA_VIDEO_MODEL,duration:input.duration,continuity:input.continuity,characterConsistency:input.characterConsistency,voiceReference:input.voiceReference,characterReferenceImages:input.characterReferenceImages||[],voiceReferenceAudio:input.voiceReferenceAudio,regionalAccent:input.regionalAccent,voiceStyle:input.voiceStyle,voiceName:input.voiceName,aspectRatio:input.aspectRatio,resolution:input.resolution,quality:input.quality})}));
   const jobId=String(created.jobId||created.id||"");
   if(!jobId)throw new Error("Video provider returned no job ID");
   const timeout=Date.now()+Math.max(60_000,Number(process.env.NEXORA_VIDEO_TIMEOUT_MS||1_800_000));
@@ -42,13 +42,15 @@ async function generateWithGoogleVeo(input:VideoRequest):Promise<VideoResult>{
   });
   const requestedDuration=Number((input.duration||"8").trim().split(" ")[0]);
   const durationSeconds=parsedReferences.length?8:requestedDuration;
+  const aspectRatio=["9:16","16:9","1:1"].includes(input.aspectRatio||"")?input.aspectRatio:"9:16";
+  const resolution=["720p","1080p"].includes(input.resolution||"")?input.resolution:"720p";
   if(![4,6,8].includes(durationSeconds))throw new Error("Google Veo generates one short clip of 4, 6, or 8 seconds. Select a short duration or configure NEXORA_VIDEO_API_URL for a long-form video provider.");
   const configuredModel=(process.env.NEXORA_VIDEO_MODEL||"").trim();
   const model=configuredModel.startsWith("veo-3.1-")?configuredModel:"veo-3.1-generate-preview";
   const apiBase=trimSlash(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta");
   const headers={"Content-Type":"application/json","x-goog-api-key":key};
   const instance={prompt:input.prompt,...(parsedReferences.length?{referenceImages:parsedReferences}:{})};
-  const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[instance],parameters:{aspectRatio:"9:16",durationSeconds:String(durationSeconds)}})}));
+  const started=await parse(await fetch(`${apiBase}/models/${model}:predictLongRunning`,{method:"POST",headers,body:JSON.stringify({instances:[instance],parameters:{aspectRatio,resolution,durationSeconds:String(durationSeconds)}})}));
   const operationName=String(started.name||started.operation?.name||"");
   if(!operationName)throw new Error("Google Veo returned no operation name");
   const timeout=Date.now()+Math.max(60_000,Number(process.env.NEXORA_VIDEO_TIMEOUT_MS||1_800_000));
