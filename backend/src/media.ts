@@ -1,12 +1,28 @@
 const OPENAI="https://api.openai.com/v1";
 function key(){const k=process.env.NEXORA_OPENAI_API_KEY;if(!k)throw new Error("OpenAI media provider is not configured");return k;}
-async function parse(r:Response){const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||`Media provider failed (${r.status})`);return d;}
+async function parse(r:Response){const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||d?.message||`Media provider failed (${r.status})`);return d;}
 
-export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare"){
+export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gemini-2.5-flash-image"){
   if(!prompt||prompt.length>32000)throw new Error("Invalid image prompt");
+  const googleKey=process.env.NEXORA_GOOGLE_API_KEY;
+  if(googleKey){
+    const selected=model.startsWith("gemini-")?model:"gemini-2.5-flash-image";
+    const base=(process.env.NEXORA_GOOGLE_BASE_URL||"https://generativelanguage.googleapis.com/v1beta").replace(/\/$/,"");
+    const r=await fetch(`${base}/models/${selected}:generateContent?key=${encodeURIComponent(googleKey)}`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"]}})
+    });
+    const d=await parse(r);
+    const parts=d?.candidates?.[0]?.content?.parts||[];
+    const item=parts.find((p:{inlineData?:{data?:string;mimeType?:string};inline_data?:{data?:string;mime_type?:string}})=>Boolean(p.inlineData?.data||p.inline_data?.data));
+    const imageData=item?.inlineData?.data||item?.inline_data?.data;
+    if(imageData)return {model:selected,imageBase64:imageData,mimeType:item?.inlineData?.mimeType||item?.inline_data?.mime_type||"image/png",provider:"google"};
+    throw new Error("Gemini returned no image. Check that image generation is enabled for your API key and model.");
+  }
   const r=await fetch(`${OPENAI}/images/generations`,{method:"POST",headers:{Authorization:`Bearer ${key()}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt})});
   const d=await parse(r);const item=d?.data?.[0];if(!item?.b64_json)throw new Error("Image provider returned no image data");
-  return {model,imageBase64:item.b64_json};
+  return {model,imageBase64:item.b64_json,provider:"openai"};
 }
 
 export async function transcribe(audioBase64:string,filename="audio.webm"){
