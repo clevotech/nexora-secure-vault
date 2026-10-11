@@ -26,11 +26,15 @@ export async function handleLeaveApi(pool:Pool|null,auth:AuthContext,raw:unknown
     if(phone&&!/^\+[1-9]\d{7,14}$/.test(phone))return fail("WhatsApp number must use international E.164 format.");
     const timezone=String(input.timezone||"UTC");
     try{new Intl.DateTimeFormat("en-US",{timeZone:timezone});}catch{return fail("Timezone must be a valid IANA timezone, such as Africa/Lagos.");}
-    const role=["employee","supervisor","hr","admin"].includes(String(input.role))?String(input.role):"employee";
+    const requestedRole=["employee","supervisor","hr","admin"].includes(String(input.role))?String(input.role):"employee";
+    if(["hr","admin"].includes(requestedRole)&&!auth.scopes.has("admin"))return fail("Only an admin may assign HR/admin profile roles.",403);
+    const role=requestedRole;
+    const supervisorUserId=String(input.supervisorUserId||"").trim();
+    if(supervisorUserId&&supervisorUserId===userId)return fail("An employee cannot be their own supervisor.");
     const workweek=Array.isArray(input.workweekDays)?input.workweekDays.map(Number).filter(n=>Number.isInteger(n)&&n>=1&&n<=7):[1,2,3,4,5];
     const result=await pool.query(
       "INSERT INTO nexora_employees(user_id,employee_number,full_name,email,whatsapp_e164,department,supervisor_user_id,role,workweek_days,timezone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(user_id) DO UPDATE SET employee_number=EXCLUDED.employee_number,full_name=EXCLUDED.full_name,email=EXCLUDED.email,whatsapp_e164=EXCLUDED.whatsapp_e164,department=EXCLUDED.department,supervisor_user_id=EXCLUDED.supervisor_user_id,role=EXCLUDED.role,workweek_days=EXCLUDED.workweek_days,timezone=EXCLUDED.timezone,updated_at=NOW() RETURNING id,user_id AS \"userId\",employee_number AS \"employeeNumber\",full_name AS \"fullName\",email,whatsapp_e164 AS \"whatsappE164\",department,supervisor_user_id AS \"supervisorUserId\",role,workweek_days AS \"workweekDays\",timezone,active",
-      [userId,String(input.employeeNumber||"")||null,name,String(input.email||"")||null,phone||null,String(input.department||"")||null,String(input.supervisorUserId||"")||null,role,workweek.length?workweek:[1,2,3,4,5],timezone]
+      [userId,String(input.employeeNumber||"")||null,name,String(input.email||"")||null,phone||null,String(input.department||"")||null,supervisorUserId||null,role,workweek.length?workweek:[1,2,3,4,5],timezone]
     );
     await audit("leave.profile.save","employee",userId,"success",{role});
     return ok({employee:result.rows[0]});
