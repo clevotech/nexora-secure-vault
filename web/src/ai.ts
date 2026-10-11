@@ -2,7 +2,9 @@ import {getAccessToken} from "./auth";
 
 export type ChatMessage={id:string;role:"user"|"assistant";content:string;createdAt:string};
 export type AIResponse={content?:string;message?:string;error?:string;job?:unknown;url?:string;imageUrl?:string;images?:string[];imageBase64?:string;mimeType?:string;data?:unknown};
-const base=import.meta.env.VITE_NEXORA_AI_ENDPOINT||"/api/ai";
+const configuredBase=(import.meta.env.VITE_NEXORA_AI_ENDPOINT||"").trim();
+// GitHub Pages has no /api/ai proxy. Use the Render API directly unless a full API URL is configured.
+const base=(configuredBase.startsWith("http")?configuredBase.replace(/\/api\/ai\/?$/,""):"https://nexora-api-ars8.onrender.com");
 async function request(path:string,payload:unknown,signal?:AbortSignal):Promise<AIResponse>{
  const token=await getAccessToken();
  const headers:Record<string,string>={"Content-Type":"application/json"};
