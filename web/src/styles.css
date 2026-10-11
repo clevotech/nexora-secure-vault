@@ -63,3 +63,7 @@ footer{display:flex;justify-content:space-between;gap:10px;padding:24px 4px 0;co
 @media(max-width:600px){.builder-actions>*{flex:1 1 100%;max-width:none}.builder-preview{height:68vh}}
 
 .asset-source-panel{margin:18px 0;padding:18px;border:1px solid #293653;border-radius:16px;background:linear-gradient(145deg,#111b30aa,#0b1322aa)}.asset-source-panel>strong{display:block;font:600 15px 'Space Grotesk';color:#f5f7ff}.asset-source-panel .builder-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.asset-source-panel .builder-actions button{min-height:42px;padding:10px 14px;flex:1 1 145px;border-radius:11px;font-size:12px;cursor:pointer}.asset-source-panel .hint{line-height:1.55}
+
+
+/* Creative media controls and output actions */
+.media-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}.media-options>div{min-width:0}.media-options select{width:100%;min-width:0}.generated-media{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:14px;max-width:100%}.generated-media img{display:block;max-width:100%;max-height:620px;object-fit:contain;border-radius:12px}.download-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:650}.video-result{display:flex;flex-direction:column;align-items:flex-start;gap:12px}.video-result video{width:100%;max-height:620px;border-radius:12px;background:#101010}@media(max-width:560px){.media-options{grid-template-columns:1fr}.download-link{width:100%;box-sizing:border-box}}
