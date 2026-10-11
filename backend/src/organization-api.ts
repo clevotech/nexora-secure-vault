@@ -16,8 +16,8 @@ export async function handleOrganizationApi(pool:Pool|null,auth:AuthContext,raw:
  if(!raw||typeof raw!=="object")return fail("Invalid request body.");
  const input=raw as Record<string,unknown>,action=clean(input.action,60);
  if(action==="organization.register"){
-  const name=clean(input.name),email=clean(input.email,254).toLowerCase(),phone=clean(input.phone,40),website=clean(input.website,300),address=clean(input.address,500),country=clean(input.country,100),industry=clean(input.industry,120),registrationNumber=clean(input.registrationNumber,120),logoUrl=clean(input.logoUrl,2048),fullName=clean(input.adminFullName,180);
-  if(name.length<2||!validEmail(email)||fullName.length<2)return fail("Organization name, valid contact email, and Admin Officer full name are required.");
+  const name=clean(input.name),email=clean(input.email,254).toLowerCase(),adminEmail=clean(input.adminEmail,254).toLowerCase(),phone=clean(input.phone,40),website=clean(input.website,300),address=clean(input.address,500),country=clean(input.country,100),industry=clean(input.industry,120),registrationNumber=clean(input.registrationNumber,120),logoUrl=clean(input.logoUrl,2048),fullName=clean(input.adminFullName,180);
+  if(name.length<2||!validEmail(email)||!validEmail(adminEmail)||fullName.length<2)return fail("Organization name, valid organization and Admin Officer emails, and Admin Officer full name are required.");
   if(website){try{const u=new URL(website);if(u.protocol!=="https:")return fail("Website must use HTTPS.");}catch{return fail("Enter a valid HTTPS website URL.");}}
   if(logoUrl){try{const u=new URL(logoUrl);if(u.protocol!=="https:")return fail("Logo must be a valid HTTPS image URL.");}catch{return fail("Enter a valid HTTPS logo URL, or leave it blank.");}}
   const client=await pool.connect();
@@ -27,7 +27,7 @@ export async function handleOrganizationApi(pool:Pool|null,auth:AuthContext,raw:
    if(existing.rows[0]){await client.query("ROLLBACK");return fail("This account already belongs to an organization. Ask your Admin Officer to manage your membership.",409);}
    const inserted=await client.query("INSERT INTO nexora_organizations(name,email,phone,website,address,country,industry,registration_number,logo_url,owner_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,organization_code AS \"organizationId\",name,email,phone,website,address,country,industry,registration_number AS \"registrationNumber\",logo_url AS \"logoUrl\",created_at AS \"createdAt\"",[name,email,phone||null,website||null,address||null,country||null,industry||null,registrationNumber||null,logoUrl||null,auth.userId]);
    const org=inserted.rows[0];
-   const member=await client.query("INSERT INTO nexora_organization_members(user_id,organization_id,full_name,email,role,status) VALUES($1,$2,$3,$4,'admin_officer','active') RETURNING user_code AS \"userId\",user_id AS \"authUserId\",full_name AS \"fullName\",email,role,status,created_at AS \"createdAt\"",[auth.userId,org.id,fullName,clean(input.adminEmail,254).toLowerCase()]);
+   const member=await client.query("INSERT INTO nexora_organization_members(user_id,organization_id,full_name,email,role,status) VALUES($1,$2,$3,$4,'admin_officer','active') RETURNING user_code AS \"userId\",user_id AS \"authUserId\",full_name AS \"fullName\",email,role,status,created_at AS \"createdAt\"",[auth.userId,org.id,fullName,adminEmail]);
    await client.query("COMMIT");
    await audit(pool,auth,"organization.register","organization",org.id,{organizationCode:org.organizationId,role:"admin_officer"});
    return ok({organization:org,user:member.rows[0]},201);
