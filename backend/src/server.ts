@@ -92,7 +92,7 @@ const server=createServer(async(req,res)=>{
       return send(res,400,{error:"Invalid memory action"});
     }
     if(req.url==="/image"){
-      const input=await body(req,2_000_000);
+      const input=await body(req,25_000_000);
       const refs=Array.isArray(input.referenceImages)?input.referenceImages.filter((x:unknown)=>Boolean(x&&typeof x==="object"&&typeof (x as {dataUrl?:unknown}).dataUrl==="string")).slice(0,2) as {name?:string;dataUrl:string}[]:[];return send(res,200,await generateImage(String(input.prompt||""),typeof input.model==="string"?input.model:undefined,refs,{aspectRatio:typeof input.aspectRatio==="string"?input.aspectRatio:undefined,resolution:typeof input.resolution==="string"?input.resolution:undefined,quality:typeof input.quality==="string"?input.quality:undefined,format:typeof input.format==="string"?input.format:undefined}));
     }
     if(req.url==="/voice/transcribe"){
@@ -111,7 +111,7 @@ const server=createServer(async(req,res)=>{
       return send(res,200,{url:await objectStorage.signedGet(key)});
     }
     if(req.url==="/jobs"){
-      const input=await body(req);
+      const input=await body(req,25_000_000);
       if(input.action==="create" && ["image","video","transcription","speech"].includes(input.kind)){
         return send(res,202,{job:await jobs.create(auth.userId,input.kind,input.metadata||{})});
       }
@@ -119,7 +119,7 @@ const server=createServer(async(req,res)=>{
       return send(res,400,{error:"Invalid job action"});
     }
     if(req.url==="/video"){
-      const input=await body(req,2_000_000);
+      const input=await body(req,25_000_000);
       const prompt=String(input.prompt||"");
       if(!prompt||prompt.length>32000)throw new Error("Invalid video prompt");
       return send(res,202,{job:await jobs.create(auth.userId,"video",{prompt,model:typeof input.model==="string"?input.model:undefined,duration:typeof input.duration==="string"?input.duration:undefined,continuity:input.continuity===true,characterConsistency:input.characterConsistency===true,voiceReference:input.voiceReference===true,characterReferenceImages:Array.isArray(input.characterReferenceImages)?input.characterReferenceImages.slice(0,2):[],voiceReferenceAudio:typeof input.voiceReferenceAudio==="string"?input.voiceReferenceAudio:undefined,regionalAccent:typeof input.regionalAccent==="string"?input.regionalAccent:undefined,voiceStyle:typeof input.voiceStyle==="string"?input.voiceStyle:undefined,voiceName:typeof input.voiceName==="string"?input.voiceName:undefined,aspectRatio:typeof input.aspectRatio==="string"?input.aspectRatio:undefined,resolution:typeof input.resolution==="string"?input.resolution:undefined,quality:typeof input.quality==="string"?input.quality:undefined})});
