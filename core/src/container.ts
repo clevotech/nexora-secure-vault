@@ -1,22 +1,19 @@
 import {createSalt,deriveKey,encryptChunk,decryptChunk,operationId,encryptMetadata,decryptMetadata} from "./crypto.js";
 import {CHUNK_SIZE,NSV_MAGIC,NSV_VERSION,MAX_CHUNK_BYTES,MAX_HEADER_BYTES,decodeHeader,encodeHeader,type NsvHeader} from "./protocol.js";
-
 const u32=(n:number)=>{const x=new Uint8Array(4);new DataView(x.buffer).setUint32(0,n,true);return x};
 const readU32=(b:Uint8Array,o:number)=>{if(o+4>b.length)throw new Error("Malformed container");return new DataView(b.buffer,b.byteOffset+o,4).getUint32(0,true)};
 const join=(parts:Uint8Array[])=>{const n=parts.reduce((s,x)=>s+x.length,0),out=new Uint8Array(n);let o=0;for(const p of parts){out.set(p,o);o+=p.length}return out};
 const saltHex=(s:Uint8Array)=>Array.from(s,x=>x.toString(16).padStart(2,"0")).join("");
-
 export function encryptFile(input:Uint8Array,password:string,fileName:string,createdAt=new Date().toISOString()):Uint8Array{
  const salt=createSalt(),key=deriveKey(password,salt),id=operationId(),safeName=fileName.replace(/[\\/]/g,"_").slice(0,1024)||"file";
- const privateMetadata=encryptMetadata(key,JSON.stringify({originalName:safeName,originalSize:String(input.length),createdAt}));
- const header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:saltHex(salt),chunkSize:CHUNK_SIZE,originalName:"Encrypted file",originalSize:"0",createdAt:"hidden",operationId:id,...privateMetadata};
+ const privateMetadata=encryptMetadata(key,JSON.stringify({originalName:safeName}));
+ const header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:saltHex(salt),chunkSize:CHUNK_SIZE,originalName:"Encrypted file",originalSize:String(input.length),createdAt,operationId:id,...privateMetadata};
  const hb=encodeHeader(header);if(hb.length>MAX_HEADER_BYTES)throw new Error("Header too large");
  const parts=[u32(hb.length),hb];let seq=0;
  for(let o=0;o<input.length||seq===0;o+=CHUNK_SIZE){
-   const plain=input.subarray(o,Math.min(o+CHUNK_SIZE,input.length));
-   const r=encryptChunk(key,plain,seq,hb);
-   if(r.ciphertext.length>MAX_CHUNK_BYTES)throw new Error("Chunk too large");
-   parts.push(u32(seq),new Uint8Array([r.nonce.length]),r.nonce,u32(r.ciphertext.length),r.ciphertext);seq++;
+  const plain=input.subarray(o,Math.min(o+CHUNK_SIZE,input.length)),r=encryptChunk(key,plain,seq,hb);
+  if(r.ciphertext.length>MAX_CHUNK_BYTES)throw new Error("Chunk too large");
+  parts.push(u32(seq),new Uint8Array([r.nonce.length]),r.nonce,u32(r.ciphertext.length),r.ciphertext);seq++;
  }
  return join(parts);
 }
@@ -24,25 +21,20 @@ export function decryptFile(container:Uint8Array,password:string):{data:Uint8Arr
  let o=0;const hlen=readU32(container,o);o+=4;if(hlen>MAX_HEADER_BYTES||o+hlen>container.length)throw new Error("Malformed header");
  const hb=container.subarray(o,o+hlen);o+=hlen;const header=decodeHeader(hb);
  const salt=new Uint8Array(header.salt.match(/../g)!.map(x=>parseInt(x,16))),key=deriveKey(password,salt),parts:Uint8Array[]=[];
- let expectedSeq=0,total=0,expectedSize=Number(header.originalSize),metadata:{originalName?:string;originalSize?:string;createdAt?:string}|undefined;
- if(header.version===2){
-  if(!header.nameNonce||!header.nameCiphertext)throw new Error("Encrypted metadata is missing");
-  try{metadata=JSON.parse(decryptMetadata(key,header.nameNonce,header.nameCiphertext))}catch{throw new Error("Incorrect password or damaged encrypted file");}
-  const restoredMetadata=metadata as {originalName?:string;originalSize?:string;createdAt?:string};
-  if(typeof restoredMetadata.originalName!=="string"||!restoredMetadata.originalName||!Number.isSafeInteger(Number(restoredMetadata.originalSize))||Number(restoredMetadata.originalSize)<0)throw new Error("Encrypted file metadata is invalid");
-  metadata=restoredMetadata;
-  expectedSize=Number(restoredMetadata.originalSize);
- }
+ let expectedSeq=0,total=0;const size=Number(header.originalSize);
  while(o<container.length){
   const seq=readU32(container,o);o+=4;if(seq!==expectedSeq)throw new Error("Invalid chunk sequence");
   if(o>=container.length)throw new Error("Malformed chunk");const nl=container[o++];if(nl!==12||o+nl>container.length)throw new Error("Invalid nonce");
   const nonce=container.subarray(o,o+nl);o+=nl;const clen=readU32(container,o);o+=4;
   if(clen<16||clen>MAX_CHUNK_BYTES||o+clen>container.length)throw new Error("Invalid ciphertext length");
   const cipher=container.subarray(o,o+clen);o+=clen;const plain=decryptChunk(key,cipher,nonce,seq,hb);total+=plain.length;
-  if(total>expectedSize)throw new Error("Integrity/size verification failed");parts.push(plain);expectedSeq++;
+  if(total>size)throw new Error("Integrity/size verification failed");parts.push(plain);expectedSeq++;
  }
- if(total!==expectedSize)throw new Error("Integrity/size verification failed");
- const originalName=metadata?.originalName||header.originalName;
- const restoredHeader={...header,originalName,originalSize:String(expectedSize),createdAt:metadata?.createdAt||header.createdAt};
- return {data:join(parts),header:restoredHeader};
+ if(total!==size)throw new Error("Integrity/size verification failed");
+ const originalName=header.nameNonce&&header.nameCiphertext?restoreMetadataName(header,key):header.originalName;
+ return {data:join(parts),header:{...header,originalName}};
+}
+function restoreMetadataName(header:NsvHeader,key:Uint8Array):string{
+ if(!header.nameNonce||!header.nameCiphertext)throw new Error("Encrypted metadata missing");
+ try{const metadata=JSON.parse(decryptMetadata(key,header.nameNonce,header.nameCiphertext));if(typeof metadata.originalName!=="string"||!metadata.originalName)throw new Error("Invalid filename metadata");return metadata.originalName}catch{throw new Error("Incorrect password or damaged encrypted file")}
 }
