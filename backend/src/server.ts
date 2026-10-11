@@ -8,6 +8,7 @@ import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
 import {handleLeaveApi} from "./leave-api.js";
 import {appendAuditEvent} from "./leave.js";
+import {handleWhatsAppWebhook} from "./whatsapp-webhook.js";
 
 const port=Number(process.env.PORT||8787);
 const pool=await createDatabasePool();
@@ -37,6 +38,7 @@ const server=createServer(async(req,res)=>{
   res.setHeader("Access-Control-Allow-Headers","Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
   if(req.method==="OPTIONS"){res.statusCode=204;return res.end();}
+  if(await handleWhatsAppWebhook(req,res,pool))return;
   if(req.url==="/health" && req.method==="GET"){
     let database:"connected"|"unconfigured"|"unreachable"=pool?"connected":"unconfigured";
     if(pool){try{await pool.query("SELECT 1");}catch{database="unreachable";}}
