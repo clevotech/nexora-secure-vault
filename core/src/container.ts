@@ -8,7 +8,8 @@ const saltHex=(s:Uint8Array)=>Array.from(s,x=>x.toString(16).padStart(2,"0")).jo
 
 export function encryptFile(input:Uint8Array,password:string,fileName:string,createdAt=new Date().toISOString()):Uint8Array{
  const salt=createSalt(),key=deriveKey(password,salt),id=operationId();
- const header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:saltHex(salt),chunkSize:CHUNK_SIZE,originalName:fileName.replace(/[\\/]/g,"_"),originalSize:String(input.length),createdAt,operationId:id};
+ const nameFields=encryptMetadata(key,fileName.replace(/[\\/]/g,"_"));
+ const header:NsvHeader={magic:NSV_MAGIC,version:NSV_VERSION,algorithm:"AES-256-GCM",kdf:"Argon2id",salt:saltHex(salt),chunkSize:CHUNK_SIZE,originalName:"Encrypted file",originalSize:String(input.length),createdAt,operationId:id,...nameFields};
  const hb=encodeHeader(header);if(hb.length>MAX_HEADER_BYTES)throw new Error("Header too large");
  const parts=[u32(hb.length),hb];let seq=0;
  for(let o=0;o<input.length||seq===0;o+=CHUNK_SIZE){
