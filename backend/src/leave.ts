@@ -7,6 +7,17 @@ export function validIsoDate(value:unknown):value is string {
   return !Number.isNaN(date.valueOf())&&date.toISOString().slice(0,10)===value;
 }
 
+export function countWorkdays(startDate:string,endDate:string,workweekDays:number[]=[1,2,3,4,5],holidays:string[]=[]):number {
+  if(!validIsoDate(startDate)||!validIsoDate(endDate)||endDate<startDate)throw new Error("Invalid leave date range.");
+  const workweek=new Set(workweekDays),blocked=new Set(holidays);
+  let count=0;
+  for(let date=new Date(startDate+"T00:00:00.000Z"),last=new Date(endDate+"T00:00:00.000Z");date<=last;date.setUTCDate(date.getUTCDate()+1)){
+    const iso=date.toISOString().slice(0,10),day=date.getUTCDay()===0?7:date.getUTCDay();
+    if(workweek.has(day)&&!blocked.has(iso))count++;
+  }
+  return count;
+}
+
 export function localTimeToUtc(date:string,timeZone:string,hour=9):Date {
   if(!validIsoDate(date))throw new Error("Invalid local calendar date.");
   let guess=Date.parse(date+"T"+String(hour).padStart(2,"0")+":00:00.000Z");
