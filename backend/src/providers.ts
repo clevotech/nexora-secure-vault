@@ -4,7 +4,7 @@ import {providerEnv} from "./registry.js";
 function requireConfig(provider:ProviderId){const cfg=providerEnv(provider);if(!cfg.key)throw new Error(`Provider ${provider} is not configured`);return cfg;}
 function modelName(spec:ModelSpec){return spec.id.split(":").slice(1).join(":");}
 async function jsonFetch(url:string,init:RequestInit){
-  const r=await fetch(url,{...init,headers:{"Content-Type":"application/json",...(init.headers||{})}});
+  const timeoutMs=Math.max(5000,Math.min(120000,Number(process.env.NEXORA_PROVIDER_TIMEOUT_MS||30000)));\n  const signal=init.signal||AbortSignal.timeout(timeoutMs);\n  const r=await fetch(url,{...init,signal,headers:{"Content-Type":"application/json",...(init.headers||{})}});
   const data=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(data?.error?.message||data?.error||data?.message||`Provider request failed (${r.status})`);
   return data;

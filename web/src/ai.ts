@@ -36,3 +36,5 @@ export async function waitForJob(id:string,signal?:AbortSignal,timeoutMs=120000)
  throw new Error("Job timed out");
 }
 export const getIntegrations=()=>request("/integrations",{action:"list"});
+
+export async function publishSite(name:string,html:string):Promise<{url?:string;message?:string}>{return request("/deploy/site",{name,html});}
