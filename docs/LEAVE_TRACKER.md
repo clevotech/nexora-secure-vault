@@ -34,3 +34,8 @@ Return reminders are scheduled for 09:00 in each employee's validated IANA timez
 ## Deployment notes
 
 Merge only after CI passes. The backend startup migrations run when DATABASE_URL is configured. Keep OIDC authentication enabled in production; do not enable NEXORA_DEV_AUTH on the public service.
+
+
+## Organization registration and membership
+
+The Organization workspace is available from the main navigation. An authenticated user can register one organization with its name, contact details, address, country, industry, registration number and HTTPS logo URL. The first registrant becomes that organization’s Admin Officer. The API generates an organization code (`NXO-…`) and user codes (`NXU-…`) server-side; the browser cannot select privileged roles during initial registration. Only the Admin Officer can invite additional users, with Employee, Supervisor or HR roles. Invitations use Supabase Auth and require the backend-only `SUPABASE_URL` (or `VITE_SUPABASE_URL`) and `SUPABASE_SERVICE_ROLE_KEY` environment variables on Render. Never expose the service-role key to the browser. Invited users receive an email invitation and are activated when they sign in with the invited identity. Organization membership and role changes are server-authorized and audited.
