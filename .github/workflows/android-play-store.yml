@@ -1,0 +1,98 @@
+name: Android Play Store preparation
+
+on:
+  push:
+    branches: [main, play-store-prep]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-play-store.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Run Android unit tests
+        working-directory: android
+        run: gradle :app:testDebugUnitTest
+
+      - name: Build debug APK for device testing
+        working-directory: android
+        run: gradle :app:assembleDebug
+
+      - name: Check release signing configuration
+        id: signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nexora-release.jks"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets are not configured. Only a debug APK will be published as an artifact."
+          fi
+
+      - name: Build signed release App Bundle
+        if: steps.signing.outputs.configured == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/nexora-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle :app:bundleRelease
+
+      - name: Upload debug APK for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload signed Play Store bundle
+        if: steps.signing.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-android-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Build summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Android build summary"
+            echo "- Android API target configured in project: 36"
+            echo "- Debug APK: built for testing, not for Play Store upload"
+            if [ "${{ steps.signing.outputs.configured }}" = "true" ]; then
+              echo "- Signed release AAB: build requested; inspect this run's artifacts and logs"
+            else
+              echo "- Signed release AAB: not built because signing secrets are missing"
+              echo "- Required GitHub Actions secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
