@@ -1,5 +1,5 @@
 export const NSV_MAGIC="NSV1";
-export const NSV_VERSION=2;
+export const NSV_VERSION=1;
 export const CHUNK_SIZE=1024*1024;
 export const MAX_HEADER_BYTES=64*1024;
 export const MAX_CHUNK_BYTES=CHUNK_SIZE+16;
@@ -20,6 +20,7 @@ export function decodeHeader(bytes:Uint8Array):NsvHeader{
   if(!Number.isSafeInteger(Number(h.originalSize))||Number(h.originalSize)<0) throw new Error("Invalid original size");
   if(typeof h.originalName!=="string"||h.originalName.length===0||h.originalName.length>1024) throw new Error("Invalid original filename");
   if(typeof h.operationId!=="string"||h.operationId.length<16) throw new Error("Invalid operation id");
-  if(h.version===2&&(!h.nameNonce||!/^[0-9a-f]{24}$/i.test(h.nameNonce)||!h.nameCiphertext||!/^(?:[0-9a-f]{2}){16,4096}$/i.test(h.nameCiphertext))) throw new Error("Invalid encrypted metadata");
+  if((h.nameNonce&&!/^[0-9a-f]{24}$/i.test(h.nameNonce))||(h.nameCiphertext&&!/^(?:[0-9a-f]{2}){16,4096}$/i.test(h.nameCiphertext))) throw new Error("Invalid encrypted metadata");
+  if(Boolean(h.nameNonce)!==Boolean(h.nameCiphertext)) throw new Error("Incomplete encrypted metadata");
   return h;
 }
