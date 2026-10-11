@@ -24,7 +24,9 @@ export function authConfigured(){return Boolean(supabase)}
 
 export async function signInWithEmployeeId(userId:string,password:string):Promise<void>{
   if(!supabase)throw new Error("Sign-in is not configured. Contact your Nexora administrator.");
-  const endpoint=(import.meta.env.VITE_NEXORA_AI_ENDPOINT||"/api/ai").replace(/\/$/,"");
+  const configuredEndpoint=(import.meta.env.VITE_NEXORA_AUTH_ENDPOINT||"").trim();
+  const aiEndpoint=(import.meta.env.VITE_NEXORA_AI_ENDPOINT||"").trim();
+  const endpoint=(configuredEndpoint || (aiEndpoint.startsWith("http") ? aiEndpoint.replace(/\/api\/ai\/?$/,"") : "https://nexora-api-ars8.onrender.com")).replace(/\/$/,"");
   const response=await fetch(endpoint+"/auth/employee-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:userId.trim().toUpperCase(),password})});
   const result=await response.json().catch(()=>({})) as {access_token?:string;refresh_token?:string;error?:string};
   if(!response.ok||!result.access_token||!result.refresh_token)throw new Error(result.error||"User ID or password is incorrect.");
