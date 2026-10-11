@@ -6,6 +6,7 @@ import {createDatabasePool,initializeDatabase} from "./db.js";
 import {createPersistence} from "./persistence.js";
 import {generateImage,transcribe,speak} from "./media.js";
 import {createObjectStorage} from "./object-storage.js";
+import {handleLeaveApi} from "./leave-api.js";
 
 const port=Number(process.env.PORT||8787);
 const pool=await createDatabasePool();
@@ -50,6 +51,12 @@ const server=createServer(async(req,res)=>{
   try{
     const authHeaders={"authorization":Array.isArray(req.headers.authorization)?req.headers.authorization[0]:req.headers.authorization};
     const auth=await authenticate(authHeaders);
+    if(req.url==="/leave"){
+      const input=await body(req,2_000_000);
+      const correlationId=typeof req.headers["x-request-id"]==="string"?req.headers["x-request-id"]:undefined;
+      const result=await handleLeaveApi(pool,auth,input,correlationId);
+      return send(res,result.status,result.body);
+    }
     if(req.url==="/chat/stream"){
       const input=validateChat(await body(req));
       res.statusCode=200;
