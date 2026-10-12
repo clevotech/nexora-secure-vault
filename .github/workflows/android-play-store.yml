@@ -58,10 +58,10 @@ jobs:
         id: signing
         shell: bash
         env:
-          ANDROID_KEYSTORE_BASE64: ${ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nexora-release.jks"
@@ -75,10 +75,10 @@ jobs:
         if: steps.signing.outputs.configured == 'true'
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PATH: ${ runner.temp }}/nexora-release.jks
-          ANDROID_KEYSTORE_PASSWORD: ${ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/nexora-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon --stacktrace :app:bundleRelease
 
       - name: Upload debug APK for testing
@@ -106,7 +106,7 @@ jobs:
             echo "## Android build summary"
             echo "- Android API target configured in project: 36"
             echo "- Debug APK: built and signature-verified for testing, not for Play Store upload"
-            if [ "${ steps.signing.outputs.configured }}" = "true" ]; then
+            if [ "${{ steps.signing.outputs.configured }}" = "true" ]; then
               echo "- Signed release AAB: build requested; inspect this run's artifacts and logs"
             else
               echo "- Signed release AAB: not built because signing secrets are missing"
