@@ -4,7 +4,10 @@ import type {ChatRequest,ProviderResult} from "./types.js";
 
 function safeProviderFailure(error:unknown):string{
   const raw=error instanceof Error?error.message:String(error);
-  return raw.replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}|Bearer\\s+\\S+)/g,"[redacted]").slice(0,240);
+  return raw
+    .replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+\S+)/g,"[redacted]")
+    .replace(/([?&](?:key|api_key|token)=)[^&\s]+/gi,"$1[redacted]")
+    .slice(0,240);
 }
 
 export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
@@ -29,29 +32,27 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   // One model per provider and no more than three providers per request. This
   // keeps fallback useful without making a failed request wait for every model.
   const candidates=ranked.filter((spec,index,array)=>array.findIndex(x=>x.provider===spec.provider)===index).slice(0,3);
-  let last:unknown;
-  let timedOut=false;
+  if(!candidates.length)throw new Error("No AI provider is configured. Add a valid provider API key in Render environment settings.");
+  const failures:string[]=[];
+  let timeoutCount=0;
   for(const spec of candidates){
     try{return await callProvider(spec,input.messages);}
     catch(error){
-      last=error;
       const isTimeout=error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError");
+      const reason=safeProviderFailure(error);
+      failures.push(`${spec.provider} (${spec.id}): ${reason}`);
       console.warn("[Nexora AI] provider request failed",{
         provider:spec.provider,
         model:spec.id,
         failureType:isTimeout?"timeout":"provider_error",
         errorName:error instanceof Error?error.name:"UnknownError",
-        failureReason:safeProviderFailure(error)
+        failureReason:reason
       });
-      if(isTimeout){
-        timedOut=true;
-        // Try the next configured provider/model rather than failing on the first timeout.
-        continue;
-      }
+      if(isTimeout)timeoutCount++;
     }
   }
-  if(timedOut)throw new Error("All attempted AI providers timed out. Check provider quotas and Render logs for the failed provider/model.");
-  throw last instanceof Error?last:new Error("No configured AI provider is available. Configure NEXORA_GOOGLE_API_KEY or another supported provider.");
+  if(timeoutCount===candidates.length)throw new Error("All attempted AI providers timed out. Check provider quotas, billing, and Render logs.");
+  throw new Error("All attempted AI providers failed: "+failures.join(" | "));
 }
 
 export function validateChat(input:unknown):ChatRequest{
