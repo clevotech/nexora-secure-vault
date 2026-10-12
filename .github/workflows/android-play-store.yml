@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -31,20 +31,37 @@ jobs:
 
       - name: Run Android unit tests
         working-directory: android
-        run: gradle :app:testDebugUnitTest
+        run: gradle --no-daemon --stacktrace clean :app:testDebugUnitTest
 
       - name: Build debug APK for device testing
         working-directory: android
-        run: gradle :app:assembleDebug
+        run: gradle --no-daemon --stacktrace --info :app:assembleDebug
+
+      - name: Validate debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          file "$APK"
+          unzip -t "$APK"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          APKSIGNER="$(find "$SDK/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::Android apksigner was not found in the installed SDK."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose "$APK"
+          sha256sum "$APK"
 
       - name: Check release signing configuration
         id: signing
         shell: bash
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nexora-release.jks"
@@ -58,11 +75,11 @@ jobs:
         if: steps.signing.outputs.configured == 'true'
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/nexora-release.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle :app:bundleRelease
+          ANDROID_KEYSTORE_PATH: ${ runner.temp }}/nexora-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon --stacktrace :app:bundleRelease
 
       - name: Upload debug APK for testing
         uses: actions/upload-artifact@v4
@@ -88,8 +105,8 @@ jobs:
           {
             echo "## Android build summary"
             echo "- Android API target configured in project: 36"
-            echo "- Debug APK: built for testing, not for Play Store upload"
-            if [ "${{ steps.signing.outputs.configured }}" = "true" ]; then
+            echo "- Debug APK: built and signature-verified for testing, not for Play Store upload"
+            if [ "${ steps.signing.outputs.configured }}" = "true" ]; then
               echo "- Signed release AAB: build requested; inspect this run's artifacts and logs"
             else
               echo "- Signed release AAB: not built because signing secrets are missing"
