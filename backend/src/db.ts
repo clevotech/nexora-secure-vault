@@ -37,6 +37,8 @@ export async function initializeDatabase(pool:Pool){
   await pool.query(simpleUserIdsMigration);
   const organizationHolidayMigration=await readFile(new URL("../migrations/007_organization_leave_holidays.sql",import.meta.url),"utf8");
   await pool.query(organizationHolidayMigration);
+  const formBuilderMigration=await readFile(new URL("../migrations/008_form_builder.sql",import.meta.url),"utf8");
+  await pool.query(formBuilderMigration);
 }
 
 export async function createDatabasePool(){
