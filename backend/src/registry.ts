@@ -1,9 +1,9 @@
 import type {ModelSpec,ProviderId,Task} from "./types.js";
 
 export const MODELS:ModelSpec[]=[
-  {id:"openai:gpt-6-astra",provider:"openai",capabilities:["text","vision","tools","streaming"],strengths:["reasoning","research"],speed:"premium"},
-  {id:"openai:gpt-6.1-sol",provider:"openai",capabilities:["text","vision","tools","streaming"],strengths:["reasoning","coding","research"],speed:"balanced"},
-  {id:"openai:gpt-6-luna",provider:"openai",capabilities:["text","vision","tools","streaming"],strengths:["chat","coding"],speed:"fast"},
+  {id:"openai:gpt-5.1",provider:"openai",capabilities:["text","vision","tools","streaming"],strengths:["reasoning","research"],speed:"premium"},
+  {id:"openai:gpt-5",provider:"openai",capabilities:["text","vision","tools","streaming"],strengths:["reasoning","coding","research"],speed:"balanced"},
+  {id:"openai:gpt-5-mini",provider:"openai",capabilities:["text","vision","tools","streaming"],strengths:["chat","coding"],speed:"fast"},
   {id:"anthropic:claude-opus-5-5",provider:"anthropic",capabilities:["text","vision","tools","streaming"],strengths:["reasoning","research","coding"],speed:"premium"},
   {id:"anthropic:claude-fable-5-1",provider:"anthropic",capabilities:["text","vision","tools","streaming"],strengths:["chat","research"],speed:"balanced"},
   {id:"google:gemini-3.8-flash",provider:"google",capabilities:["text","vision","audio","tools","streaming"],strengths:["chat","research","coding"],speed:"fast"},
