@@ -2,6 +2,11 @@ import {callProvider,callProviderStream} from "./providers.js";
 import {MODELS,providerEnv,routeModel,findModel} from "./registry.js";
 import type {ChatRequest,ProviderResult} from "./types.js";
 
+function safeProviderFailure(error:unknown):string{
+  const raw=error instanceof Error?error.message:String(error);
+  return raw.replace(/(?:sk-[A-Za-z0-9_-]{12,}|AIza[0-9A-Za-z_-]{20,}|Bearer\\s+\\S+)/g,"[redacted]").slice(0,240);
+}
+
 export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
   const primary=routeModel(input.model,input.task||"chat");
   const configured=(spec:typeof MODELS[number])=>Boolean(providerEnv(spec.provider).key);
@@ -35,7 +40,8 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
         provider:spec.provider,
         model:spec.id,
         failureType:isTimeout?"timeout":"provider_error",
-        errorName:error instanceof Error?error.name:"UnknownError"
+        errorName:error instanceof Error?error.name:"UnknownError",
+        failureReason:safeProviderFailure(error)
       });
       if(isTimeout){
         timedOut=true;
@@ -83,7 +89,8 @@ export async function routeChatStream(input:ChatRequest,onToken:(delta:string)=>
     provider:spec.provider,
     model:spec.id,
     failureType:isTimeout?"timeout":"provider_error",
-    errorName:error instanceof Error?error.name:"UnknownError"
+    errorName:error instanceof Error?error.name:"UnknownError",
+    failureReason:safeProviderFailure(error)
    });
    // Try the next configured provider. A provider without streaming support is
    // not allowed to break chat; the normal router below remains the final fallback.
