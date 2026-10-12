@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)
                 ) {
-                    Text("NEXORA", style = MaterialTheme.typography.labelLarge)
+                    Text("NEXORA AI", style = MaterialTheme.typography.labelLarge)
                     Text("Secure Vault", style = MaterialTheme.typography.headlineLarge)
                     Text("NSV1 • AES-256-GCM • Argon2id")
 
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
                         onValueChange = { password = it },
                         label = { Text("Password") },
                         singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
                         enabled = !busy
                     )
 
