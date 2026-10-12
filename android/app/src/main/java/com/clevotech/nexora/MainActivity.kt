@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)
                 ) {
-                    Text("NEXORA", style = MaterialTheme.typography.labelLarge)
+                    Text("NEXORA AI", style = MaterialTheme.typography.labelLarge)
                     Text("Secure Vault", style = MaterialTheme.typography.headlineLarge)
                     Text("NSV1 • AES-256-GCM • Argon2id")
 
