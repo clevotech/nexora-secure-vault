@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+
 jobs:
   android-build:
     runs-on: ubuntu-latest
@@ -31,11 +34,11 @@ jobs:
 
       - name: Run Android unit tests
         working-directory: android
-        run: gradle --no-daemon --stacktrace clean :app:testDebugUnitTest
+        run: gradle --no-daemon --max-workers=2 --stacktrace clean :app:testDebugUnitTest
 
       - name: Build debug APK for device testing
         working-directory: android
-        run: gradle --no-daemon --stacktrace --info :app:assembleDebug
+        run: gradle --no-daemon --max-workers=2 --stacktrace --info :app:assembleDebug
 
       - name: Validate debug APK
         shell: bash
@@ -79,7 +82,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon --stacktrace :app:bundleRelease
+        run: gradle --no-daemon --max-workers=2 --stacktrace :app:bundleRelease
 
       - name: Upload debug APK for testing
         uses: actions/upload-artifact@v4
