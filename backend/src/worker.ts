@@ -80,11 +80,16 @@ async function processJob(job:MediaJob){
     return {type:"video",key,model:output.model,format:output.contentType};
   }
   if(job.kind!=="image")throw new Error(`No active worker adapter is configured for ${job.kind}`);
-  if(!storage)throw new Error("Object storage is required for image output jobs");
   const output=await generateImage(String(job.metadata.prompt||""),typeof job.metadata.model==="string"?job.metadata.model:undefined);
-  const key=`${job.userId}/jobs/${job.id}.png`;
-  await storage.put(key,Buffer.from(output.imageBase64,"base64"),"image/png");
-  return {type:"image",key,model:output.model};
+  if(!storage){
+    // Permit authenticated inline delivery for smaller images while object storage is being configured.
+    const bytes=Buffer.from(output.imageBase64,"base64");
+    if(bytes.byteLength>18_000_000)throw new Error("Generated image is too large for inline delivery. Configure NEXORA_STORAGE_BUCKET and its S3 credentials.");
+    return {type:"image",imageBase64:output.imageBase64,mimeType:output.mimeType||"image/png",model:output.model};
+  }
+  const key=job.userId+"/jobs/"+job.id+".png";
+  await storage.put(key,Buffer.from(output.imageBase64,"base64"),output.mimeType||"image/png");
+  return {type:"image",key,model:output.model,mimeType:output.mimeType||"image/png"};
 }
 
 async function tick(){
