@@ -1,4 +1,5 @@
 import {createServer} from "node:http";
+import {randomUUID} from "node:crypto";
 import {spawn,type ChildProcess} from "node:child_process";
 import {routeChat,routeChatStream,validateChat} from "./router.js";
 import {authenticate} from "./auth.js";
@@ -51,6 +52,40 @@ const server=createServer(async(req,res)=>{
     const storageConfigured=Boolean(objectStorage);
     const ready=database==="connected"&&authConfigured&&chatProviderConfigured&&mediaConfigured&&storageConfigured&&videoConfigured;
     return send(res,200,{ok:true,ready,service:"nexora-ai-backend",database,authConfigured,chatProviderConfigured,mediaConfigured,videoConfigured,storageConfigured,workerEnabled:Boolean(pool)&&process.env.NEXORA_EMBED_WORKER!=="false"});
+  }
+  const publicFormMatch=(req.url||"").match(/^\/forms\/submit\/([0-9a-f-]{36})$/i);
+  if(publicFormMatch){
+    if(req.method!=="POST")return send(res,405,{error:"Method not allowed"});
+    if(!pool)return send(res,503,{error:"Form database is not configured."});
+    try{
+      const formId=publicFormMatch[1];
+      const formRecord=await pool.query("SELECT id FROM nexora_published_forms WHERE id=$1 AND active=true",[formId]);
+      if(!formRecord.rowCount)return send(res,404,{error:"This form is unavailable or has been unpublished."});
+      const input=await body(req,100_000);
+      if(input.website)return send(res,202,{ok:true});
+      const values=input.values;
+      if(!values||typeof values!=="object"||Array.isArray(values))return send(res,400,{error:"Invalid form submission."});
+      const entries=Object.entries(values);
+      if(entries.length<1||entries.length>100)return send(res,400,{error:"A form must contain between 1 and 100 answers."});
+      const safeValues:Record<string,string>={};
+      let total=0;
+      for(const [rawKey,rawValue] of entries){
+        const key=String(rawKey).trim().slice(0,120);
+        if(!key)continue;
+        const value=String(rawValue??"").slice(0,5000);
+        total+=key.length+value.length;
+        if(total>50_000)return send(res,413,{error:"Form answers are too large."});
+        safeValues[key]=value;
+      }
+      const title=String(input.formTitle||"Published form").slice(0,180);
+      const submittedAt=new Date().toISOString();
+      const submissionId=randomUUID();
+      await pool.query("INSERT INTO nexora_form_submissions(id,form_id,form_title,submitted_at,answers) VALUES($1,$2,$3,$4,$5::jsonb)",[submissionId,formId,title,submittedAt,JSON.stringify(safeValues)]);
+      return send(res,201,{ok:true,id:submissionId});
+    }catch(error){
+      const message=error instanceof Error?error.message:"Form submission failed";
+      return send(res,message==="Request too large"?413:400,{error:message});
+    }
   }
   if(req.method!=="POST"){return send(res,405,{error:"Method not allowed"});}
   if(req.url==="/auth/employee-login"){
@@ -181,8 +216,18 @@ const server=createServer(async(req,res)=>{
       const token=process.env.NEXORA_GITHUB_TOKEN;
       if(!token)return send(res,503,{error:"Publishing is not configured yet. Set NEXORA_GITHUB_TOKEN on Render with Contents: Read and write permission for the Nexora repository."});
       const name=String(input.name||"nexora-site").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,48);
-      const html=String(input.html||"");
+      let html=String(input.html||"");
+      const isDatabaseForm=html.includes("__NEXORA_FORM_ENDPOINT__");
       if(!name||!/^<!doctype html|^<html/i.test(html.trim())||!html.toLowerCase().includes("</body>")||html.length>900000)throw new Error("Provide a complete HTML page under 900 KB.");
+      if(isDatabaseForm&&!pool)return send(res,503,{error:"The Nexora database is not configured, so this form cannot be published with automatic storage."});
+      let formId:string|undefined;
+      if(isDatabaseForm){
+        formId=randomUUID();
+        const formTitle=String(input.formTitle||name).slice(0,180);
+        await pool!.query("INSERT INTO nexora_published_forms(id,owner_user_id,form_title,site_name) VALUES($1,$2,$3,$4)",[formId,auth.userId,formTitle,name]);
+        const apiBase=(process.env.NEXORA_PUBLIC_API_BASE_URL||"https://nexora-api-ars8.onrender.com").replace(/\/$/,"");
+        html=html.replaceAll("__NEXORA_FORM_ENDPOINT__",apiBase+"/forms/submit/"+formId);
+      }
       const repo=(process.env.NEXORA_GITHUB_REPOSITORY||"clevotech/nexora-secure-vault").split("/");
       if(repo.length!==2||repo.some(x=>!x))throw new Error("Invalid NEXORA_GITHUB_REPOSITORY configuration.");
       const path="web/public/sites/"+name+"/index.html";
@@ -196,7 +241,7 @@ const server=createServer(async(req,res)=>{
       const result=await response.json().catch(()=>({})) as {message?:string;content?:{path?:string};commit?:{html_url?:string}};
       if(!response.ok)throw new Error(result.message||"GitHub rejected the site publish request.");
       const pagesBase=process.env.NEXORA_PAGES_BASE_URL||"https://clevotech.github.io/nexora-secure-vault";
-      return send(res,200,{message:"Site commit created. GitHub Actions will publish it after the Pages workflow succeeds.",url:pagesBase.replace(/\/$/,"")+"/sites/"+name+"/",commitUrl:result.commit?.html_url});
+      return send(res,200,{message:isDatabaseForm?"Form published and connected to Nexora’s database. Submissions will be stored automatically when the Pages deployment succeeds.":"Site commit created. GitHub Actions will publish it after the Pages workflow succeeds.",url:pagesBase.replace(/\/$/,"")+"/sites/"+name+"/",commitUrl:result.commit?.html_url,...(formId?{formId}:{})});
     }
     if(req.url==="/integrations"){
       return send(res,200,{data:[],message:"No external integrations are connected yet."});
