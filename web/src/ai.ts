@@ -9,10 +9,23 @@ async function request(path:string,payload:unknown,signal?:AbortSignal):Promise<
  const token=await getAccessToken();
  const headers:Record<string,string>={"Content-Type":"application/json"};
  if(token)headers["Authorization"]=["Bearer",token].join(" ");
- const r=await fetch(base.replace(/\/$/,"")+path,{method:"POST",headers,body:JSON.stringify(payload),signal});
- const data=await r.json().catch(()=>({}));
- if(!r.ok)throw new Error(data.error||data.message||`AI request failed (${r.status})`);
- return data;
+ const controller=new AbortController();
+ const abortFromCaller=()=>controller.abort();
+ if(signal?.aborted)controller.abort();else signal?.addEventListener("abort",abortFromCaller,{once:true});
+ const timeout=setTimeout(()=>controller.abort(),180_000);
+ try{
+  let r:Response;
+  try{r=await fetch(base.replace(/\/$/,"")+path,{method:"POST",headers,body:JSON.stringify(payload),signal:controller.signal});}
+  catch(error){
+   if(signal?.aborted)throw error;
+   if(controller.signal.aborted)throw new Error("Nexora request timed out after 3 minutes. Check the provider quota and try again.");
+   if(error instanceof TypeError)throw new Error("Could not reach Nexora AI. Check your internet connection; the API may be waking up or the browser request may be blocked by CORS.");
+   throw error;
+  }
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(data.error||data.message||`Nexora AI request failed (${r.status})`);
+  return data;
+ }finally{clearTimeout(timeout);signal?.removeEventListener("abort",abortFromCaller);}
 }
 export const aiChat=(messages:ChatMessage[],model="auto",signal?:AbortSignal)=>request("/chat",{messages,model},signal);
 
