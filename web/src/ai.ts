@@ -34,12 +34,17 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
  const token=await getAccessToken();
  const headers:Record<string,string>={"Content-Type":"application/json","Accept":"text/event-stream, application/json"};
  if(token)headers["Authorization"]=["Bearer",token].join(" ");
+ const streamController=new AbortController();
+ const abortFromCaller=()=>streamController.abort();
+ if(signal?.aborted)streamController.abort();else signal?.addEventListener("abort",abortFromCaller,{once:true});
+ const streamTimeout=setTimeout(()=>streamController.abort(),180_000);
+ const cleanupStream=()=>{clearTimeout(streamTimeout);signal?.removeEventListener("abort",abortFromCaller);};
  let response:Response;
- try{response=await fetch(base.replace(/\/$/,"")+"/chat/stream",{method:"POST",headers,body:JSON.stringify({messages,model,stream:true}),signal});}
- catch(error){if(signal?.aborted)throw error;return aiChat(messages,model,signal);}
- if(!response.ok||!response.body)return aiChat(messages,model,signal);
+ try{response=await fetch(base.replace(/\/$/,"")+"/chat/stream",{method:"POST",headers,body:JSON.stringify({messages,model,stream:true}),signal:streamController.signal});}
+ catch(error){cleanupStream();if(signal?.aborted)throw error;if(streamController.signal.aborted)throw new Error("Nexora chat timed out after 3 minutes. Check provider quotas and try again.");return aiChat(messages,model,signal);}
+ if(!response.ok||!response.body){cleanupStream();return aiChat(messages,model,signal);}
  const type=response.headers.get("content-type")||"";
- if(!type.includes("text/event-stream")&&!type.includes("application/x-ndjson"))return aiChat(messages,model,signal);
+ if(!type.includes("text/event-stream")&&!type.includes("application/x-ndjson")){cleanupStream();return aiChat(messages,model,signal);}
  const reader=response.body.getReader(),decoder=new TextDecoder();
  let buffer="",content="";
  const consume=(raw:string)=>{
@@ -53,7 +58,7 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
   }
  };
  try{while(true){const {done,value}=await reader.read();buffer+=decoder.decode(value,{stream:!done});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";consume(lines.join("\n"));if(done)break;}if(buffer.trim())consume(buffer);}
- finally{reader.releaseLock();}
+ finally{reader.releaseLock();cleanupStream();}
  if(!content)return aiChat(messages,model,signal);
  return {content};
 }
