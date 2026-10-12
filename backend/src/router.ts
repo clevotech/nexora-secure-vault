@@ -30,14 +30,21 @@ export async function routeChat(input:ChatRequest):Promise<ProviderResult>{
     try{return await callProvider(spec,input.messages);}
     catch(error){
       last=error;
-      if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError")){
+      const isTimeout=error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError");
+      console.warn("[Nexora AI] provider request failed",{
+        provider:spec.provider,
+        model:spec.id,
+        failureType:isTimeout?"timeout":"provider_error",
+        errorName:error instanceof Error?error.name:"UnknownError"
+      });
+      if(isTimeout){
         timedOut=true;
         // Try the next configured provider/model rather than failing on the first timeout.
         continue;
       }
     }
   }
-  if(timedOut)throw new Error("All available AI providers timed out. Try a shorter brief, check provider quota/status, or configure another provider in Render.");
+  if(timedOut)throw new Error("All attempted AI providers timed out. Check provider quotas and Render logs for the failed provider/model.");
   throw last instanceof Error?last:new Error("No configured AI provider is available. Configure NEXORA_GOOGLE_API_KEY or another supported provider.");
 }
 
@@ -71,9 +78,16 @@ export async function routeChatStream(input:ChatRequest,onToken:(delta:string)=>
  for(const spec of candidates){
   try{return await callProviderStream(spec,input.messages,onToken);}
   catch(error){
+   const isTimeout=error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError");
+   console.warn("[Nexora AI] streaming provider request failed",{
+    provider:spec.provider,
+    model:spec.id,
+    failureType:isTimeout?"timeout":"provider_error",
+    errorName:error instanceof Error?error.name:"UnknownError"
+   });
    // Try the next configured provider. A provider without streaming support is
    // not allowed to break chat; the normal router below remains the final fallback.
-   if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))continue;
+   if(isTimeout)continue;
   }
  }
  const result=await routeChat(input);
