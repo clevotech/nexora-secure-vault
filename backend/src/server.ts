@@ -34,7 +34,9 @@ async function body(req:import("node:http").IncomingMessage,maxBytes=2_000_000){
 const server=createServer(async(req,res)=>{
   const configuredOrigin=process.env.NEXORA_CORS_ORIGIN||"";
   const requestOrigin=req.headers.origin;
-  if(requestOrigin&&configuredOrigin.split(",").map(x=>x.trim()).filter(Boolean).includes(requestOrigin)){
+  if((req.url||"").startsWith("/forms/submit/")){
+    res.setHeader("Access-Control-Allow-Origin","*");
+  }else if(requestOrigin&&configuredOrigin.split(",").map(x=>x.trim()).filter(Boolean).includes(requestOrigin)){
     res.setHeader("Access-Control-Allow-Origin",requestOrigin);
   }
   res.setHeader("Vary","Origin");
