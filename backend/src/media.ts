@@ -19,7 +19,7 @@ function pcmToWav(pcm:Buffer,sampleRate=24000,channels=1){
 
 export type ImageReference={name?:string;dataUrl:string};
 export type ImageOptions={aspectRatio?:string;resolution?:string;quality?:string;format?:string};
-export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-2.5-flare",referenceImages:ImageReference[]=[],options:ImageOptions={}){
+export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE_MODEL||"gpt-image-1",referenceImages:ImageReference[]=[],options:ImageOptions={}){
   if(!prompt||prompt.length>32000)throw new Error("Invalid image prompt");
   if(referenceImages.length>2||referenceImages.some(x=>typeof x.dataUrl!=="string"||!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(x.dataUrl)))throw new Error("Provide up to 2 valid PNG, JPEG, or WebP reference images.");
   const googleKey=process.env.NEXORA_GOOGLE_API_KEY;
@@ -34,7 +34,7 @@ export async function generateImage(prompt:string,model=process.env.NEXORA_IMAGE
     const item=responseParts.find(p=>Boolean(p.inlineData?.data||p.inline_data?.data));
     const imageData=item?.inlineData?.data||item?.inline_data?.data;
     if(imageData)return {model:selected,imageBase64:imageData,mimeType:item?.inlineData?.mimeType||item?.inline_data?.mime_type||"image/png",provider:"google"};
-    throw new Error("Gemini returned no image. Check API access and image-generation quota for gemini-2.5-flash-image.");
+    throw new Error("Gemini returned no image. Check access and image-generation quota for gemini-3.1-flash-image.");
     }catch(error){
       // OpenAI can be used as a quota fallback only for text-to-image. Do not
       // silently discard user-supplied reference images.
