@@ -201,7 +201,7 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}button:
 
 /* Form Builder images always fit their preview area without stretching. */
 .form-header-image-preview{width:100%;align-items:flex-start}
-.form-header-image-preview img{display:block;width:100%;max-width:100%;height:auto;max-height:240px;aspect-ratio:16/5;object-fit:contain;object-position:center;background:#f1f4f9}
+.form-header-image-preview img{display:block;width:100%;max-width:100%;height:auto!important;max-height:min(45vh,360px);aspect-ratio:auto;object-fit:contain;object-position:center;background:#f1f4f9}
 .form-code-tools{margin:16px 0;padding:16px;border:1px solid #293653;border-radius:16px;background:rgba(20,29,48,.55)}
 .form-code-tools .row{align-items:flex-start}
 .form-code-toggle{display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-size:13px;line-height:1.5}
