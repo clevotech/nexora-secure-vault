@@ -56,7 +56,7 @@ export function buildGoogleAppsScript(): string {
     "      else if (allHeaders.length > headers.length) sheet.getRange(1, 1, 1, existing.length + allHeaders.length - headers.length).setValues([existing.concat(allHeaders.slice(headers.length))]);",
     "      const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);",
     "      const safeValues = {};",
-    "      Object.keys(values).forEach(k => { const key = String(k).slice(0, 120); let v = String(values[k] == null ? '' : values[k]).slice(0, 5000); if (/^[=+@]/.test(v)) v = "'" + v; safeValues[key] = v; });",
+    "      Object.keys(values).forEach(k => { const key = String(k).slice(0, 120); let v = String(values[k] == null ? '' : values[k]).slice(0, 5000); if (/^[=+@]/.test(v)) v = \"'\" + v; safeValues[key] = v; });",
     "      const row = finalHeaders.map(h => h === 'Timestamp' ? new Date() : h === 'Form title' ? title : h === 'Submission ID' ? Utilities.getUuid() : (safeValues[h] || ''));",
     "      sheet.appendRow(row);",
     "      return json_({ ok: true, id: row[2] });",
