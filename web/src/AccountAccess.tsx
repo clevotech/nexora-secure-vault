@@ -47,7 +47,7 @@ export default function AccountAccess({onClose}:Props){
    e.preventDefault();setMessage("");setError("");
    if(!supabase){setError("Secure sign-up is not configured yet. Ask the Nexora administrator to configure Supabase authentication.");return;}
    const normalized=email.trim().toLowerCase();
-   if(!normalized||!/^\S+@\S+\.\S+$/.test(normalized)){setError("Enter a valid email address.");return;}
+   if(mode!=="update"&&(!normalized||!/^\S+@\S+\.\S+$/.test(normalized))){setError("Enter a valid email address.");return;}
    if(mode==="signup"||mode==="update"){
      if(mode==="signup"&&!fullName.trim()){setError("Enter your full name.");return;}
      if(score<5){setError("Use at least 12 characters with uppercase and lowercase letters, a number and a symbol.");return;}
@@ -134,7 +134,7 @@ export default function AccountAccess({onClose}:Props){
     </div>}
     <form className="account-form" onSubmit={submit} noValidate>
      {mode==="signup"&&<label>Full name<input autoComplete="name" value={fullName} onChange={e=>setFullName(e.target.value)} maxLength={100} placeholder="Your name" required/></label>}
-     <label>Email address<input type="email" autoComplete="email" inputMode="email" value={email} onChange={e=>setEmail(e.target.value)} maxLength={254} placeholder="you@example.com" required/></label>
+     {mode!=="update"&&<label>Email address<input type="email" autoComplete="email" inputMode="email" value={email} onChange={e=>setEmail(e.target.value)} maxLength={254} placeholder="you@example.com" required/></label>}
      {mode!=="reset"&&<label>Password <span className="account-label-note">{mode==="signup"||mode==="update"?"12+ characters recommended":"Your account password"}</span><div className="account-password-row"><input type={showPassword?"text":"password"} autoComplete={mode==="signup"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} minLength={mode==="signup"?12:1} placeholder={mode==="signup"?"Create a strong password":"Enter your password"} required/><button type="button" className="account-show-password" onClick={()=>setShowPassword(v=>!v)}>{showPassword?"Hide":"Show"}</button></div></label>}
      {(mode==="signup"||mode==="update")&&password&&<div className="password-strength" aria-live="polite"><div className="password-strength-track"><span data-score={score} style={{width:(score/5*100)+"%"}}/></div><small>{score===5?"Strong password":score>=3?"Getting stronger":"Use a longer, mixed-character password"}</small><ul>{["12+ characters","Lowercase letter","Uppercase letter","Number","Symbol"].map((rule,i)=><li className={strength[i]?"met":""} key={rule}>{strength[i]?"✓":"○"} {rule}</li>)}</ul></div>}
      {(mode==="signup"||mode==="update")&&<><label>Confirm password<input type={showPassword?"text":"password"} autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" required/></label>{mode==="signup"&&<label className="account-consent"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>I agree to the <a href="https://github.com/clevotech/nexora-secure-vault/blob/main/docs/TERMS.md" target="_blank" rel="noreferrer">Terms</a> and <a href="https://github.com/clevotech/nexora-secure-vault/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">Privacy Notice</a>.</span></label>}</>
