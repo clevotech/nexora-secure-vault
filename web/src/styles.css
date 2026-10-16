@@ -154,3 +154,10 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}button:
 .theme-toggle{flex:0 0 auto;padding:10px 12px;border:1px solid #34415d;border-radius:12px;background:#151f35;color:#dbe7ff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .theme-toggle:focus-visible{outline:2px solid #7df3d5;outline-offset:2px}
 @media(max-width:600px){.theme-toggle{padding:9px 10px;font-size:11px}.workspace-topbar{gap:7px}}
+
+/* Publication audit report links and status history */
+.publish-audit-panel{margin:16px 0;padding:16px;border:1px solid var(--border,#34415d);border-radius:16px;background:rgba(20,29,48,.72)}
+.publish-audit-heading h3{margin:6px 0}.publish-audit-record{padding:12px 0;border-top:1px solid var(--border,#34415d);display:grid;gap:9px}
+.publish-audit-meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.publish-audit-meta span,.publish-audit-record small{font-size:12px;opacity:.75}
+.publish-audit-links{display:flex;gap:8px;flex-wrap:wrap}.publish-audit-links a{display:inline-flex;padding:8px 10px;border:1px solid var(--border,#34415d);border-radius:9px;text-decoration:none;font-size:12px;font-weight:700}
+.publish-audit-links a:hover{filter:brightness(1.2)}:root[data-theme="light"] .publish-audit-panel{background:#fff;border-color:#d8e0ef}:root[data-theme="light"] .publish-audit-record{border-color:#d8e0ef}:root[data-theme="light"] .publish-audit-links a{border-color:#cbd5e1;color:#26344b}
