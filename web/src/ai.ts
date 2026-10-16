@@ -90,6 +90,7 @@ export const getIntegrations=()=>request("/integrations",{action:"list"});
 export type PublishAuditReport={id:string;siteName:string;publicationType:string;status:string;publishedAt:string;frontendUrl:string;backendUrl:string;attachmentsUrl:string;commitUrl?:string|null;formId?:string|null};
 export type PublishResult={url?:string;frontendUrl?:string;backendUrl?:string;attachmentsUrl?:string;message?:string;formId?:string;auditReport?:PublishAuditReport;auditPersisted?:boolean};
 export async function publishSite(name:string,html:string,formTitle?:string):Promise<PublishResult>{return request("/deploy/site",{name,html,...(formTitle?{formTitle}:{})});}
+export async function getPublishAudit():Promise<{reports:PublishAuditReport[];auditPersisted?:boolean}>{return request("/deploy/audit",{action:"list"});}
 
 export const leaveApi=(input:Record<string,unknown>):Promise<any>=>request("/leave",input);
 
