@@ -1,3 +1,4 @@
+import "./account.css";
 import React,{useEffect,useMemo,useState} from "react";
 import {ensureAnonymousSession,supabase} from "./auth";
 
