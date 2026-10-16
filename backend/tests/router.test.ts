@@ -7,7 +7,7 @@ test("auto router selects a task-capable model",()=>{
   assert.equal(routeModel("auto","coding").strengths.includes("coding"),true);
 });
 test("explicit model is preserved",()=>{
-  assert.equal(routeModel("openai:gpt-6-astra","chat").id,"openai:gpt-6-astra");
+  assert.equal(routeModel("anthropic:claude-fable-5-1","chat").id,"anthropic:claude-fable-5-1");
 });
 test("invalid model is rejected",()=>{
   assert.throws(()=>validateChat({messages:[{role:"user",content:"hi"}],model:"not-real"}));
