@@ -4,7 +4,7 @@ async function* fileSource(file:File,signal?:AbortSignal){const reader=file.stre
 type SaveHandle={createWritable:()=>Promise<WritableStream<Uint8Array>>};
 async function saveTarget(name:string):Promise<{sink:(c:Uint8Array)=>Promise<void>;close:()=>Promise<void>}>{
  const picker=(window as any).showSaveFilePicker;
- if(typeof picker!=="function")throw new Error("Streaming file save is not supported by this browser. Use a current Chromium-based browser or the desktop app.");
+ if(typeof picker!=="function"){const parts:Uint8Array[]=[];return {sink:async c=>{parts.push(c)},close:async()=>{const url=URL.createObjectURL(new Blob(parts,{type:"application/octet-stream"}));const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}};}
  const handle=await picker({suggestedName:name});
  const writable=await (handle as SaveHandle).createWritable();const writer=writable.getWriter();
  return {sink:async c=>{await writer.ready;await writer.write(c)},close:async()=>{await writer.close()}};
@@ -17,9 +17,9 @@ async function readHeader(file:File){
  if(headerBytes.length!==hlen)throw new Error("Incomplete Nexora header");
  return decodeHeader(headerBytes);
 }
-export async function encryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
- const target=await saveTarget("Nexora-"+crypto.randomUUID().replace(/-/g,"").slice(0,16)+".nsv");let written=0;
- try{const header=await encryptStream(fileSource(file,signal),async c=>{written+=c.length;onChunk?.(written);await target.sink(c)},password,file.name,file.size);await target.close();return{header}}
+export async function encryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal,onOutputChunk?:(chunk:Uint8Array)=>void){
+ const outputName="Nexora-"+crypto.randomUUID().replace(/-/g,"").slice(0,16)+".nsv";const target=await saveTarget(outputName);let written=0;
+ try{const header=await encryptStream(fileSource(file,signal),async c=>{written+=c.length;onChunk?.(written);onOutputChunk?.(c);await target.sink(c)},password,file.name,file.size);await target.close();return{header,outputName}}
  catch(e){try{await target.close()}catch{}throw e}
 }
 export async function decryptBrowserFile(file:File,password:string,onChunk?:(bytes:number)=>void,signal?:AbortSignal){
