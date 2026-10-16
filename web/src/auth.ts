@@ -5,18 +5,35 @@ const publishableKey=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY||"";
 
 export const supabase=url&&publishableKey?createClient(url,publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
 
-export async function getAccessToken():Promise<string|undefined>{
-  if(!supabase)return undefined;
-  const {data:{session}}=await supabase.auth.getSession();
-  return session?.access_token;
+/** Obtain a real Supabase access token before calling protected Nexora API routes. */
+export async function getAccessToken():Promise<string>{
+  if(!supabase){
+    throw new Error("Nexora authentication is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in the web deployment, then redeploy.");
+  }
+  let session:Session|null;
+  try{
+    session=await ensureAnonymousSession();
+  }catch(error){
+    const detail=error instanceof Error?error.message:"Unknown authentication error";
+    if(/anonymous.*disabled|anonymous sign.?in.*disabled/i.test(detail)){
+      throw new Error("Nexora guest access is disabled in Supabase. Enable Anonymous Sign-Ins in Supabase Authentication settings, or sign in with a registered account.");
+    }
+    throw new Error("Nexora could not establish your login session. Check your connection and Supabase Authentication settings. "+detail);
+  }
+  if(!session?.access_token){
+    throw new Error("Nexora could not obtain an access token. Sign in again or ask the administrator to check Supabase Authentication.");
+  }
+  return session.access_token;
 }
 
 export async function ensureAnonymousSession():Promise<Session|null>{
   if(!supabase)return null;
-  const {data:{session}}=await supabase.auth.getSession();
+  const {data:{session},error:sessionError}=await supabase.auth.getSession();
+  if(sessionError)throw sessionError;
   if(session)return session;
   const {data,error}=await supabase.auth.signInAnonymously();
   if(error)throw error;
+  if(!data.session)throw new Error("Supabase did not return a session after guest sign-in.");
   return data.session;
 }
 
