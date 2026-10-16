@@ -3,18 +3,40 @@ import {createClient,type Session} from "@supabase/supabase-js";
 const url=import.meta.env.VITE_SUPABASE_URL||"";
 const publishableKey=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY||"";
 
-// Some mobile WebViews reject AbortSignal objects supplied by a dependency to
-// window.fetch. Retry only that specific TypeError without the signal so auth
-// can still work in affected browsers; all other fetch errors remain visible.
+// Some mobile browsers/WebViews reject AbortSignal values passed by Supabase
+// to fetch. A Request input can carry its own signal even when init.signal is
+// empty, so retry the specific "Invalid value" TypeError without either signal.
+// Do not retry unrelated network, CORS, or authentication errors.
 const compatibleSupabaseFetch:typeof fetch=async(input,init)=>{
   try{
     return await globalThis.fetch(input,init);
   }catch(error){
-    const hasSignal=Boolean(init&&init.signal);
-    const invalidSignalValue=error instanceof TypeError&&/invalid value/i.test(error.message);
-    if(!hasSignal||!invalidSignalValue)throw error;
-    const retryInit={...init};
+    if(!(error instanceof TypeError)||!/invalid value/i.test(error.message))throw error;
+    const retryInit:RequestInit={...(init||{})};
     delete retryInit.signal;
+    const candidate=input as Request;
+    const isRequestLike=Boolean(candidate&&typeof candidate==="object"&&typeof candidate.url==="string"&&typeof candidate.clone==="function"&&typeof candidate.method==="string");
+    if(isRequestLike){
+      const request=candidate;
+      const method=request.method.toUpperCase();
+      const body=method==="GET"||method==="HEAD"?undefined:await request.clone().arrayBuffer();
+      const rebuilt:RequestInit={
+        method:request.method,
+        headers:request.headers,
+        credentials:request.credentials,
+        cache:request.cache,
+        redirect:request.redirect,
+        referrer:request.referrer,
+        referrerPolicy:request.referrerPolicy,
+        integrity:request.integrity,
+        keepalive:request.keepalive,
+        ...(body===undefined?{}:{body}),
+        ...retryInit,
+      };
+      delete rebuilt.signal;
+      return globalThis.fetch(request.url,rebuilt);
+    }
+    if(!init?.signal)throw error;
     return globalThis.fetch(input,retryInit);
   }
 };

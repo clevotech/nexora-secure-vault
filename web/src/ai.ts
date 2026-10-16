@@ -5,6 +5,17 @@ export type AIResponse={content?:string;message?:string;error?:string;job?:unkno
 const configuredBase=(import.meta.env.VITE_NEXORA_AI_ENDPOINT||"").trim();
 // GitHub Pages has no /api/ai proxy. Use the Render API directly unless a full API URL is configured.
 const base=(configuredBase.startsWith("http")?configuredBase.replace(/\/api\/ai\/?$/,""):"https://nexora-api-ars8.onrender.com");
+
+// Some mobile browsers/WebViews reject AbortSignal values passed by a different realm.
+// Retry only this specific fetch TypeError without the signal; preserve all other errors.
+async function compatibleFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Response>{
+ try{return await globalThis.fetch(input,init)}
+ catch(error){
+  if(!(error instanceof TypeError)||!/invalid value/i.test(error.message)||!init?.signal)throw error;
+  const retryInit={...init};delete retryInit.signal;
+  return globalThis.fetch(input,retryInit);
+ }
+}
 async function request(path:string,payload:unknown,signal?:AbortSignal):Promise<AIResponse>{
  const token=await getAccessToken();
  const headers:Record<string,string>={"Content-Type":"application/json"};
@@ -15,7 +26,7 @@ async function request(path:string,payload:unknown,signal?:AbortSignal):Promise<
  const timeout=setTimeout(()=>controller.abort(),180_000);
  try{
   let r:Response;
-  try{r=await fetch(base.replace(/\/$/,"")+path,{method:"POST",headers,body:JSON.stringify(payload),signal:controller.signal});}
+  try{r=await compatibleFetch(base.replace(/\/$/,"")+path,{method:"POST",headers,body:JSON.stringify(payload),signal:controller.signal});}
   catch(error){
    if(signal?.aborted)throw error;
    if(controller.signal.aborted)throw new Error("Nexora request timed out after 3 minutes. Check the provider quota and try again.");
@@ -40,7 +51,7 @@ export async function aiChatStream(messages:ChatMessage[],model="auto",onToken?:
  const streamTimeout=setTimeout(()=>streamController.abort(),180_000);
  const cleanupStream=()=>{clearTimeout(streamTimeout);signal?.removeEventListener("abort",abortFromCaller);};
  let response:Response;
- try{response=await fetch(base.replace(/\/$/,"")+"/chat/stream",{method:"POST",headers,body:JSON.stringify({messages,model,stream:true}),signal:streamController.signal});}
+ try{response=await compatibleFetch(base.replace(/\/$/,"")+"/chat/stream",{method:"POST",headers,body:JSON.stringify({messages,model,stream:true}),signal:streamController.signal});}
  catch(error){cleanupStream();if(signal?.aborted)throw error;if(streamController.signal.aborted)throw new Error("Nexora chat timed out after 3 minutes. Check provider quotas and try again.");return aiChat(messages,model,signal);}
  if(!response.ok||!response.body){cleanupStream();return aiChat(messages,model,signal);}
  const type=response.headers.get("content-type")||"";
