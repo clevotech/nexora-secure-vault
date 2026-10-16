@@ -3,7 +3,23 @@ import {createClient,type Session} from "@supabase/supabase-js";
 const url=import.meta.env.VITE_SUPABASE_URL||"";
 const publishableKey=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY||"";
 
-export const supabase=url&&publishableKey?createClient(url,publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
+// Some mobile WebViews reject AbortSignal objects supplied by a dependency to
+// window.fetch. Retry only that specific TypeError without the signal so auth
+// can still work in affected browsers; all other fetch errors remain visible.
+const compatibleSupabaseFetch:typeof fetch=async(input,init)=>{
+  try{
+    return await globalThis.fetch(input,init);
+  }catch(error){
+    const hasSignal=Boolean(init&&init.signal);
+    const invalidSignalValue=error instanceof TypeError&&/invalid value/i.test(error.message);
+    if(!hasSignal||!invalidSignalValue)throw error;
+    const retryInit={...init};
+    delete retryInit.signal;
+    return globalThis.fetch(input,retryInit);
+  }
+};
+
+export const supabase=url&&publishableKey?createClient(url,publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true},global:{fetch:compatibleSupabaseFetch}}):null;
 
 /** Obtain a real Supabase access token before calling protected Nexora API routes. */
 export async function getAccessToken():Promise<string>{
