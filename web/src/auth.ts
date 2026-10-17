@@ -41,7 +41,7 @@ const compatibleSupabaseFetch:typeof fetch=async(input,init)=>{
   }
 };
 
-export const supabase=url&&publishableKey?createClient(url,publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true},global:{fetch:compatibleSupabaseFetch}}):null;
+export const supabase=url&&publishableKey?createClient(url,publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,experimental:{passkey:true}},global:{fetch:compatibleSupabaseFetch}}):null;
 
 /** Obtain a real Supabase access token before calling protected Nexora API routes. */
 export async function getAccessToken():Promise<string>{
