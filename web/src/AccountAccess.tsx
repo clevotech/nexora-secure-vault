@@ -4,6 +4,17 @@ import {ensureAnonymousSession,supabase} from "./auth";
 
 type Props={onClose:()=>void};
 type Mode="signin"|"signup"|"reset"|"update";
+function explainAuthError(error:unknown,provider?: "google"|"github"):string{
+ const raw=error instanceof Error?error.message:"Authentication failed. Please try again.";
+ const message=raw.toLowerCase();
+ if(message.includes("unsupported provider")||message.includes("provider is not enabled"))return `${provider==="google"?"Google":provider==="github"?"GitHub":"This"} sign-in is not enabled in Supabase. In Supabase Dashboard, open Authentication → Sign In / Providers, enable the provider, save its client credentials, and retry.`;
+ if(message.includes("redirect_uri_mismatch")||(message.includes("redirect url")&&message.includes("allow"))||message.includes("redirect_to"))return `The sign-in redirect is not allowlisted. Add ${window.location.origin+window.location.pathname} under Supabase Authentication → URL Configuration → Redirect URLs. For Google/GitHub, also register the Supabase callback URL shown in that provider's Supabase settings with the identity provider.`;
+ if(message.includes("invalid api key")||message.includes("no api key"))return "Supabase rejected the app key. Verify VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in the web deployment, then rebuild and redeploy the website.";
+ if(message.includes("failed to fetch")||message.includes("networkerror"))return "Nexora could not reach Supabase. Check your connection and verify the Supabase project URL and project status.";
+ if(message.includes("email rate limit")||message.includes("rate limit exceeded"))return "Supabase has temporarily rate-limited email authentication. Wait before retrying and check the project's email provider limits.";
+ if(message.includes("access_denied")||message.includes("access blocked"))return "The identity provider blocked this sign-in. Check the Google/GitHub OAuth consent, authorized redirect URI, and test-user/app-publishing settings in that provider's dashboard.";
+ return raw;
+}
 
 export default function AccountAccess({onClose}:Props){
  const [mode,setMode]=useState<Mode>("signup");
@@ -99,7 +110,7 @@ export default function AccountAccess({onClose}:Props){
        }
      }
    }catch(e){
-     const raw=e instanceof Error?e.message:"Authentication failed. Please try again.";
+     const raw=explainAuthError(e);
      setError(raw.toLowerCase().includes("invalid login credentials")?"Email or password is incorrect.":raw.toLowerCase().includes("user already registered")?"An account already exists for this email. Switch to Sign in or reset your password.":raw);
    }finally{setBusy(false);}
  };
@@ -109,7 +120,7 @@ export default function AccountAccess({onClose}:Props){
    try{
      const {error}=await supabase.auth.signInWithOAuth({provider,options:{redirectTo:window.location.origin+window.location.pathname}});
      if(error)throw error;
-   }catch(e){setError(e instanceof Error?e.message:"Could not start social sign-in.");setBusy(false);}
+   }catch(e){setError(explainAuthError(e,provider));setBusy(false);}
  };
  const signInWithPasskey=async()=>{
    if(!supabase){setError("Secure sign-in is not configured.");return;}
