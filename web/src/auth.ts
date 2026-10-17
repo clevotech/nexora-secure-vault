@@ -3,42 +3,39 @@ import {createClient,type Session} from "@supabase/supabase-js";
 const url=import.meta.env.VITE_SUPABASE_URL||"";
 const publishableKey=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY||"";
 
-// Some mobile browsers/WebViews reject AbortSignal values passed by Supabase
-// to fetch. A Request input can carry its own signal even when init.signal is
-// empty, so retry the specific "Invalid value" TypeError without either signal.
-// Do not retry unrelated network, CORS, or authentication errors.
+// Supabase auth requests are short-lived. Some Android browsers/WebViews reject
+// AbortSignal instances created in another realm, reporting "Failed to execute
+// 'fetch' on 'Window': Invalid value". Strip cancellation signals proactively
+// rather than retrying only after the first auth request has already failed.
 const compatibleSupabaseFetch:typeof fetch=async(input,init)=>{
-  try{
-    return await globalThis.fetch(input,init);
-  }catch(error){
-    if(!(error instanceof TypeError)||!/invalid value/i.test(error.message))throw error;
-    const retryInit:RequestInit={...(init||{})};
-    delete retryInit.signal;
-    const candidate=input as Request;
-    const isRequestLike=Boolean(candidate&&typeof candidate==="object"&&typeof candidate.url==="string"&&typeof candidate.clone==="function"&&typeof candidate.method==="string");
-    if(isRequestLike){
-      const request=candidate;
-      const method=request.method.toUpperCase();
-      const body=method==="GET"||method==="HEAD"?undefined:await request.clone().arrayBuffer();
-      const rebuilt:RequestInit={
-        method:request.method,
-        headers:request.headers,
-        credentials:request.credentials,
-        cache:request.cache,
-        redirect:request.redirect,
-        referrer:request.referrer,
-        referrerPolicy:request.referrerPolicy,
-        integrity:request.integrity,
-        keepalive:request.keepalive,
-        ...(body===undefined?{}:{body}),
-        ...retryInit,
-      };
-      delete rebuilt.signal;
-      return globalThis.fetch(request.url,rebuilt);
-    }
-    if(!init?.signal)throw error;
-    return globalThis.fetch(input,retryInit);
-  }
+  const safeInit:RequestInit={...(init||{})};
+  delete safeInit.signal;
+  const candidate=input as Request;
+  const isRequestLike=Boolean(candidate&&typeof candidate==="object"&&typeof candidate.url==="string"&&typeof candidate.clone==="function"&&typeof candidate.method==="string");
+  if(!isRequestLike)return globalThis.fetch(input,safeInit);
+
+  // A Request carries its own signal, so rebuild it from its URL and standard
+  // request properties to ensure the rejected signal is not retained.
+  const request=candidate;
+  const method=String(safeInit.method||request.method).toUpperCase();
+  let body=safeInit.body;
+  if(body===undefined&&method!=="GET"&&method!=="HEAD")body=await request.clone().arrayBuffer();
+  const rebuilt:RequestInit={
+    method:safeInit.method||request.method,
+    headers:safeInit.headers||request.headers,
+    credentials:safeInit.credentials||request.credentials,
+    cache:safeInit.cache||request.cache,
+    redirect:safeInit.redirect||request.redirect,
+    referrer:safeInit.referrer||request.referrer,
+    referrerPolicy:safeInit.referrerPolicy||request.referrerPolicy,
+    integrity:safeInit.integrity||request.integrity,
+    keepalive:safeInit.keepalive??request.keepalive,
+    mode:safeInit.mode||request.mode,
+    ...safeInit,
+    ...(body===undefined?{}:{body}),
+  };
+  delete rebuilt.signal;
+  return globalThis.fetch(request.url,rebuilt);
 };
 
 export const supabase=url&&publishableKey?createClient(url,publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,experimental:{passkey:true}},global:{fetch:compatibleSupabaseFetch}}):null;
