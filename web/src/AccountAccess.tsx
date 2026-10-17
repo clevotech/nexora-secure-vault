@@ -103,6 +103,37 @@ export default function AccountAccess({onClose}:Props){
      setError(raw.toLowerCase().includes("invalid login credentials")?"Email or password is incorrect.":raw.toLowerCase().includes("user already registered")?"An account already exists for this email. Switch to Sign in or reset your password.":raw);
    }finally{setBusy(false);}
  };
+ const signInWithProvider=async(provider:"google"|"github")=>{
+   if(!supabase){setError("Secure sign-in is not configured.");return;}
+   setBusy(true);setError("");setMessage("");
+   try{
+     const {error}=await supabase.auth.signInWithOAuth({provider,options:{redirectTo:window.location.origin+window.location.pathname}});
+     if(error)throw error;
+   }catch(e){setError(e instanceof Error?e.message:"Could not start social sign-in.");setBusy(false);}
+ };
+ const signInWithPasskey=async()=>{
+   if(!supabase){setError("Secure sign-in is not configured.");return;}
+   setBusy(true);setError("");setMessage("");
+   try{
+     const {error}=await supabase.auth.signInWithPasskey();
+     if(error)throw error;
+     setMessage("Passkey verified. You’re securely signed in.");
+     await refreshSession();
+     window.setTimeout(onClose,500);
+   }catch(e){setError(e instanceof Error?e.message:"Passkey sign-in failed. Try your email or Google/GitHub instead.");}
+   finally{setBusy(false);}
+ };
+ const registerPasskey=async()=>{
+   if(!supabase){setError("Secure account access is not configured.");return;}
+   if(!user||anonymous||!user.email_confirmed_at){setError("Confirm your email and sign in to a registered account before adding a passkey.");return;}
+   setBusy(true);setError("");setMessage("");
+   try{
+     const {data,error}=await supabase.auth.registerPasskey();
+     if(error)throw error;
+     setMessage("Passkey added to your account. You can now sign in with your device biometrics, screen lock, or a security key.");
+   }catch(e){setError(e instanceof Error?e.message:"Could not register a passkey. Check that Passkeys are enabled in Supabase and try again.");}
+   finally{setBusy(false);}
+ };
  const signOut=async()=>{
    if(!supabase)return;
    setBusy(true);setError("");setMessage("");
@@ -126,7 +157,7 @@ export default function AccountAccess({onClose}:Props){
    <p className="hint">{user&&!anonymous?"Your account is signed in on this device.": "Use your email to secure your workspace and keep account access recoverable."}</p>
    {user&&!anonymous&&mode!=="update"?<div className="account-session">
     <div className="account-status-dot"/><div><strong>{user.user_metadata?.full_name||accountEmail||"Nexora member"}</strong><p>{accountEmail}</p><small>{user.email_confirmed_at?"Email verified":"Confirm your email to strengthen account recovery"}</small></div>
-    <button className="secondary" type="button" disabled={busy} onClick={()=>void signOut()}>{busy?"Signing out…":"Sign out"}</button>
+    <div className="account-session-actions">{user.email_confirmed_at&&<button className="secondary" type="button" disabled={busy} onClick={()=>void registerPasskey()}>{busy?"Working…":"＋ Add biometric passkey"}</button>}<button className="secondary" type="button" disabled={busy} onClick={()=>void signOut()}>{busy?"Signing out…":"Sign out"}</button></div>
    </div>:<>{mode!=="update"&&<div className="account-mode-tabs" role="tablist" aria-label="Account actions">
      <button type="button" role="tab" aria-selected={mode==="signup"} className={mode==="signup"?"active":""} onClick={()=>resetForm("signup")}>Sign up</button>
      <button type="button" role="tab" aria-selected={mode==="signin"} className={mode==="signin"?"active":""} onClick={()=>resetForm("signin")}>Sign in</button>
@@ -140,6 +171,13 @@ export default function AccountAccess({onClose}:Props){
      {(mode==="signup"||mode==="update")&&<><label>Confirm password<input type={showPassword?"text":"password"} autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" required/></label>{mode==="signup"&&<label className="account-consent"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>I agree to the <a href="https://github.com/clevotech/nexora-secure-vault/blob/main/docs/TERMS.md" target="_blank" rel="noreferrer">Terms</a> and <a href="https://github.com/clevotech/nexora-secure-vault/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">Privacy Notice</a>.</span></label>}</>}
      <button className="primary wide" type="submit" disabled={busy}>{busy?"Please wait…":mode==="signup"?"Create secure account":mode==="signin"?"Sign in securely":mode==="update"?"Update password":"Send reset link"}</button>
     </form>
+    {(mode==="signup"||mode==="signin")&&<div className="account-social" aria-label="Alternative secure sign-in">
+      <div className="account-divider"><span>or continue with</span></div>
+      <button className="account-provider google" type="button" disabled={busy} onClick={()=>void signInWithProvider("google")}><span aria-hidden="true">G</span> Continue with Google</button>
+      <button className="account-provider github" type="button" disabled={busy} onClick={()=>void signInWithProvider("github")}><span aria-hidden="true">⌘</span> Continue with GitHub</button>
+      {mode==="signin"&&<button className="account-provider passkey" type="button" disabled={busy} onClick={()=>void signInWithPasskey()}><span aria-hidden="true">◉</span> Sign in with biometrics / passkey</button>}
+      <p className="account-provider-note">Google and GitHub must be enabled by the Nexora administrator in Supabase. Passkeys use your device’s fingerprint, face unlock, screen lock, or a security key when supported.</p>
+    </div>}
     {mode==="signin"&&<button className="account-text-button" type="button" onClick={()=>resetForm("reset")}>Forgot password?</button>}{mode==="update"&&<button className="account-text-button" type="button" onClick={()=>resetForm("signin")}>Cancel password change</button>}
     {mode==="reset"&&<button className="account-text-button" type="button" onClick={()=>resetForm("signin")}>Back to sign in</button>}
    </>}
